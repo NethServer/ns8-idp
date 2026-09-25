@@ -1,0 +1,16 @@
+[Unit]
+Description=Keycloak prototype (NethServer/dev#8080)
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+ExecStartPre=/bin/rm -f %t/keycloak.pid %t/keycloak.ctr-id
+ExecStart=/usr/bin/podman run --conmon-pidfile %t/keycloak.pid --cidfile %t/keycloak.ctr-id --cgroups=no-conmon --replace -d --name keycloak --network=host --env-file %h/.config/state/keycloak.env --volume keycloak-data:/opt/keycloak/data --volume %h/.config/state/kc-providers:/opt/keycloak/providers:Z quay.io/keycloak/keycloak:26.7 start --features=scripts --http-enabled=true --http-port=18080 --proxy-headers=xforwarded --proxy-trusted-addresses=127.0.0.1 --hostname=https://keycloak.dp.nethserver.net
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/keycloak.ctr-id -t 30
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/keycloak.ctr-id
+PIDFile=%t/keycloak.pid
+Type=forking
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

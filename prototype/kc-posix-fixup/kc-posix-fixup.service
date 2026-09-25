@@ -1,0 +1,6 @@
+[Unit]
+Description=Assign posixAccount values to LDAP entries created by Keycloak
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/runagent kc-posix-fixup

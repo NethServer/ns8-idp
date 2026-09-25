@@ -1,0 +1,9 @@
+{
+  "mappers": [
+    {
+      "name": "LDAP_ID uppercase",
+      "fileName": "ldap-id-upper.js",
+      "description": "LDAP_ID user attribute converted to uppercase"
+    }
+  ]
+}

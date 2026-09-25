@@ -1,0 +1,5 @@
+introspection_mode = post
+introspection_url = https://dovecot:CLIENT_SECRET@keycloak.dp.nethserver.net/realms/ad.dom.test/protocol/openid-connect/token/introspect
+active_attribute = active
+active_value = true
+username_attribute = preferred_username
