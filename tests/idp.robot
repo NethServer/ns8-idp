@@ -16,7 +16,7 @@ Login to cluster-admin
     Wait For Elements State    css=#main-content    visible    timeout=10s
 
 *** Test Cases ***
-Check if kickstart is installed correctly
+Check if idp is installed correctly
     ${output}  ${rc} =    Execute Command    add-module ${IMAGE_URL} 1
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}  0
@@ -39,17 +39,17 @@ Take screenshots
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/2._Settings.png
     Close Browser
 
-Check if kickstart can be configured
+Check if idp can be configured
     ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '{}'
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
 
-Check if kickstart works as expected
-    ${rc} =    Execute Command    curl -f http://127.0.0.1/kickstart/
+Check if idp works as expected
+    ${rc} =    Execute Command    curl -f http://127.0.0.1/idp/
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
 
-Check if kickstart is removed correctly
+Check if idp is removed correctly
     ${rc} =    Execute Command    remove-module --no-preserve ${module_id}
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0

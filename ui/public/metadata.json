@@ -1,19 +1,20 @@
 {
-  "name": "kickstart",
+  "name": "Identity Provider (alpha)",
   "description": {
-    "en": "My kickstart module"
+    "it": "Single sign-on e identità federata per le applicazioni NethServer 8, basata su Keycloak",
+    "en": "Single sign-on and identity federation for NethServer 8 applications, based on Keycloak"
   },
-  "categories": [],
+  "categories": ["core", "collaboration"],
   "authors": [
     {
-      "name": "Name Surname",
-      "email": "author@yourmail.org"
+      "name": "NethServer team",
+      "email": "nethserver@nethesis.it"
     }
   ],
   "docs": {
-    "documentation_url": "https://docs.kickstart.com/",
+    "documentation_url": "https://docs.nethserver.org/docs/administrator-manual/applications/idp",
     "bug_url": "https://github.com/NethServer/dev",
-    "code_url": "https://github.com/author/ns8-kickstart"
+    "code_url": "https://github.com/NethServer/ns8-idp"
   },
-  "source": "ghcr.io/nethserver/kickstart"
+  "source": "ghcr.io/nethserver/idp"
 }
