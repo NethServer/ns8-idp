@@ -60,6 +60,12 @@ so copy them to the node and run them as files, not with `ssh 'bash -s'`.
   step (`test-deny.sh`, `test-mode.sh`, `kc-idp-disabled.sh`, …).
 - `kc-posix-fixup/` – the OpenLDAP fix-up job of scenario 2, option A:
   script, user service and timer of the `scratchpad1` module.
+- `realms/` – final state of both realms, from the Keycloak partial
+  export (`POST /admin/realms/{realm}/partial-export` with clients, without
+  users, groups and roles). Keycloak masks the secrets as `**********`,
+  and the Entra ID tenant and client IDs are replaced by `TENANT_ID` and
+  `CLIENT_ID`. The prototype node no longer exists: this is the
+  reference for flows, mappers, clients and user profile.
 - `agent/` – token exchange and OAuth device authorization tests with a
   `hermes-agent` client: an agent obtains a Dovecot-only token for a
   user. Not described in INSTRUCTIONS.md yet.
