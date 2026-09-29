@@ -3,6 +3,25 @@
     "title": "get-configuration output",
     "$id": "http://schema.nethserver.org/idp/get-configuration-output.json",
     "description": "Get idp configuration",
-    "examples": [],
-    "type": "object"
+    "examples": [
+        {
+            "host": "sso.example.org",
+            "lets_encrypt": true
+        }
+    ],
+    "type": "object",
+    "required": [
+        "host",
+        "lets_encrypt"
+    ],
+    "properties": {
+        "host": {
+            "description": "Host name of the identity provider. Empty if the module is not configured yet",
+            "type": "string"
+        },
+        "lets_encrypt": {
+            "description": "A Let's Encrypt certificate is requested for the host name",
+            "type": "boolean"
+        }
+    }
 }

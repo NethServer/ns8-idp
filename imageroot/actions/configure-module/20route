@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Route the whole host name to Keycloak. If the Let's Encrypt
+# certificate is not obtained, the action fails with the Traefik error
+# and Traefik keeps the previous route: the next steps save the new
+# settings only after the route is set.
+
+import json
+import os
+import sys
+
+import agent
+
+request = json.load(sys.stdin)
+
+agent.set_route({
+    "instance": os.environ["MODULE_ID"],
+    "url": "http://127.0.0.1:" + os.environ["TCP_PORT"],
+    "host": request["host"],
+    "path": None,
+    "http2https": True,
+    "lets_encrypt": request.get("lets_encrypt", False),
+})

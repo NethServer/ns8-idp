@@ -96,6 +96,26 @@ The Keycloak image rebuilds its Quarkus configuration at every start
 (about 30 s on rl1). A custom image with the providers built in would
 remove this cost; it is not planned yet.
 
+## Module configuration
+
+`configure-module` takes the Keycloak host name (`host`) and
+`lets_encrypt`. Its steps:
+
+1. `10validate_host`: a changed host name must not be already routed by
+   Traefik, otherwise the action fails with the `host_already_used`
+   validation error.
+2. `20route`: route the whole host name to the Keycloak port, with
+   HTTP to HTTPS redirection. If the Let's Encrypt certificate is not
+   obtained, the action fails and Traefik keeps the previous route.
+3. `30configure`: save `IDP_HOSTNAME` and `IDP_LETS_ENCRYPT`. It runs
+   after the route step, so a failed route leaves the settings and the
+   running services unchanged.
+4. `80start_services`: restart the services, so Keycloak runs with the
+   new `--hostname`.
+
+`get-configuration` returns the same fields. The Settings page of the UI
+is still the template form.
+
 ## Keycloak administration
 
 Module actions, event handlers and helper scripts configure Keycloak
@@ -188,8 +208,10 @@ Keycloak starts:
 
 - `etc/state-include.conf` and the PostgreSQL dump for backup and
   restore.
-- Realm creation per user domain, LDAP federation and the Traefik route
-  of `configure-module`.
+- Realm creation per user domain and LDAP federation.
+- The Settings page fields for `host` and `lets_encrypt`, and the
+  `host_already_used` message.
+- Keycloak admin console exposure on the public host name.
 - A custom Keycloak image with the providers built in. The
   `kc-providers` volume of the prototype is not mounted until then.
 - Do not run `systemd-analyze --user verify` in a module session: on

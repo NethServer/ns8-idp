@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
 #
-# Copyright (C) 2023 Nethesis S.r.l.
+# Copyright (C) 2026 Nethesis S.r.l.
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
 import json
+import os
 import sys
-import agent
 
-config = {}
-
-json.dump(config, fp=sys.stdout)
+json.dump({
+    "host": os.getenv("IDP_HOSTNAME", ""),
+    "lets_encrypt": os.getenv("IDP_LETS_ENCRYPT", "") == "1",
+}, fp=sys.stdout)

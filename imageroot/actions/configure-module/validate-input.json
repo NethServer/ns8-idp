@@ -3,6 +3,27 @@
     "title": "configure-module input",
     "$id": "http://schema.nethserver.org/idp/configure-module-input.json",
     "description": "Configure idp",
-    "examples": [],
-    "type": "object"
+    "examples": [
+        {
+            "host": "sso.example.org",
+            "lets_encrypt": true
+        }
+    ],
+    "type": "object",
+    "required": [
+        "host"
+    ],
+    "properties": {
+        "host": {
+            "description": "Host name of the identity provider, like sso.example.org",
+            "type": "string",
+            "format": "hostname",
+            "pattern": "\\."
+        },
+        "lets_encrypt": {
+            "description": "Request a Let's Encrypt certificate for the host name",
+            "type": "boolean",
+            "default": false
+        }
+    }
 }
