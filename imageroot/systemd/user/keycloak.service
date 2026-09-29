@@ -1,16 +1,45 @@
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
 [Unit]
-Description=Keycloak prototype (NethServer/dev#8080)
+Description=Keycloak server
+BindsTo=idp.service
+Requires=keycloak-init.service
+After=idp.service postgres.service keycloak-init.service
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n
-ExecStartPre=/bin/rm -f %t/keycloak.pid %t/keycloak.ctr-id
-ExecStart=/usr/bin/podman run --conmon-pidfile %t/keycloak.pid --cidfile %t/keycloak.ctr-id --cgroups=no-conmon --replace -d --name keycloak --network=host --env-file %h/.config/state/keycloak.env --volume keycloak-data:/opt/keycloak/data --volume %h/.config/state/kc-providers:/opt/keycloak/providers:Z quay.io/keycloak/keycloak:26.7 start --features=scripts --http-enabled=true --http-port=18080 --proxy-headers=xforwarded --proxy-trusted-addresses=127.0.0.1 --hostname=https://keycloak.dp.nethserver.net
-ExecStop=/usr/bin/podman stop --ignore --cidfile %t/keycloak.ctr-id -t 30
-ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/keycloak.ctr-id
-PIDFile=%t/keycloak.pid
-Type=forking
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
 Restart=always
-TimeoutStartSec=120
-
-[Install]
-WantedBy=default.target
+# Keycloak rebuilds its configuration at every start
+TimeoutStartSec=300
+ExecStartPre=/bin/rm -f %t/keycloak.ctr-id
+# The unit is active when the health check reports Keycloak as ready.
+# The image has no curl: the check is a bash /dev/tcp request to the
+# management port.
+ExecStart=/usr/bin/podman run \
+    --detach \
+    --sdnotify=healthy \
+    --health-startup-cmd='exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /health/ready HTTP/1.0\\r\\n\\r\\n" >&3 && grep -q UP <&3' \
+    --health-startup-interval=2s \
+    --health-cmd='exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /health/ready HTTP/1.0\\r\\n\\r\\n" >&3 && grep -q UP <&3' \
+    --health-interval=60s \
+    --cidfile=%t/keycloak.ctr-id \
+    --cgroups=no-conmon \
+    --pod-id-file=%t/idp.pod-id \
+    --replace --name=%N \
+    --env-file=%E/etc/keycloak.env \
+    --env-file=./passwords.env \
+    ${KEYCLOAK_IMAGE} \
+        start \
+        --hostname=https://${IDP_HOSTNAME}
+ExecStartPost=-runagent keycloak-post-start
+ExecStop=/usr/bin/podman stop --ignore --cidfile=%t/keycloak.ctr-id -t 30
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile=%t/keycloak.ctr-id
+Type=notify
+NotifyAccess=all
+# The JVM exits with 128+SIGTERM on a normal stop
+SuccessExitStatus=143

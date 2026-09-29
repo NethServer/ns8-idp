@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Create the ns8-agent client of the master realm, or reset its secret,
+# and save it to ns8-agent.json. Keycloak must not be running: this
+# script starts a temporary server in the idp pod.
+#
+
+import os
+import secrets
+import subprocess
+import sys
+
+import agent
+import kcadmin
+
+TEMP_CLIENT_PREFIX = "ns8-bootstrap-"
+TEMP_CONTAINER = "keycloak-init"
+
+def podman_args():
+    return [
+        "podman", "run",
+        "--pod-id-file=" + os.environ["XDG_RUNTIME_DIR"] + "/idp.pod-id",
+        "--env-file=" + os.environ["AGENT_INSTALL_DIR"] + "/etc/keycloak.env",
+        "--env-file=passwords.env",
+    ]
+
+def bootstrap_temp_client(client_id, client_secret):
+    """Create a temporary admin client directly in the database. The
+    command exit code is not reliable: the caller checks the client
+    credentials instead."""
+    print(f"Creating temporary client {client_id}...", file=sys.stderr)
+    subprocess.run(podman_args() + [
+        "--rm", "--env=KC_TEMP_SECRET",
+        os.environ["KEYCLOAK_IMAGE"],
+        "bootstrap-admin", "service",
+        "--client-id=" + client_id,
+        "--client-secret:env=KC_TEMP_SECRET",
+    ], env=dict(os.environ, KC_TEMP_SECRET=client_secret),
+        # The container output is already in the journal, from the
+        # Podman log driver. Keep stderr for Podman errors.
+        stdout=subprocess.DEVNULL)
+
+def start_temp_server():
+    print("Starting temporary Keycloak server...", file=sys.stderr)
+    subprocess.run(podman_args() + [
+        "--detach", "--replace", "--name=" + TEMP_CONTAINER,
+        os.environ["KEYCLOAK_IMAGE"],
+        # Same options of keycloak.service, to avoid a rebuild. The
+        # HTTPS hostname also satisfies the "external" SSL requirement
+        # of the master realm.
+        "start", "--hostname=https://" + os.environ["IDP_HOSTNAME"],
+    ], stdout=sys.stderr, check=True)
+
+def stop_temp_server():
+    subprocess.run(["podman", "stop", "--ignore", "-t", "30", TEMP_CONTAINER], stdout=sys.stderr)
+    subprocess.run(["podman", "rm", "--ignore", "-f", TEMP_CONTAINER], stdout=sys.stderr)
+
+def setup_agent_client(kc):
+    """Create ns8-agent or reset its secret, and grant its roles. Return
+    the new secret."""
+    agent_secret = secrets.token_urlsafe(32)
+    rep = kc.find_client("master", kcadmin.AGENT_CLIENT_ID)
+    if rep is None:
+        print(f"Creating client {kcadmin.AGENT_CLIENT_ID}", file=sys.stderr)
+        kc.post("/master/clients", {
+            "clientId": kcadmin.AGENT_CLIENT_ID,
+            "name": "NethServer module agent",
+            "protocol": "openid-connect",
+            "publicClient": False,
+            "clientAuthenticatorType": "client-secret",
+            "secret": agent_secret,
+            "serviceAccountsEnabled": True,
+            "standardFlowEnabled": False,
+            "implicitFlowEnabled": False,
+            "directAccessGrantsEnabled": False,
+        })
+        rep = kc.find_client("master", kcadmin.AGENT_CLIENT_ID)
+    else:
+        print(f"Resetting the secret of client {kcadmin.AGENT_CLIENT_ID}", file=sys.stderr)
+        rep["secret"] = agent_secret
+        rep["serviceAccountsEnabled"] = True
+        kc.put(f"/master/clients/{rep['id']}", rep)
+
+    sa_user = kc.get(f"/master/clients/{rep['id']}/service-account-user")
+    kc.post(f"/master/users/{sa_user['id']}/role-mappings/realm",
+        [kc.get("/master/roles/create-realm")])
+    # A new client does not inherit the rights of the realms created by
+    # a previous ns8-agent client: grant them again.
+    for realm in kcadmin.managed_realms(kc):
+        mgmt = kc.find_client("master", f"{realm}-realm")
+        if mgmt is None:
+            continue
+        print(f"Granting admin roles of realm {realm}", file=sys.stderr)
+        kc.post(f"/master/users/{sa_user['id']}/role-mappings/clients/{mgmt['id']}",
+            kc.get(f"/master/clients/{mgmt['id']}/roles"))
+    return agent_secret
+
+def delete_temp_clients(kc):
+    """Delete the temporary clients, including leftovers of interrupted
+    runs. The current one goes last: its token is still valid after
+    the deletion, but no new token can be obtained."""
+    temp_clients = [rep for rep in kc.get("/master/clients", params={"search": "true", "clientId": TEMP_CLIENT_PREFIX})
+        if rep["clientId"].startswith(TEMP_CLIENT_PREFIX)]
+    temp_clients.sort(key=lambda rep: rep["clientId"] == kc.client_id)
+    for rep in temp_clients:
+        print(f"Deleting temporary client {rep['clientId']}", file=sys.stderr)
+        kc.delete(f"/master/clients/{rep['id']}")
+
+temp_client_id = TEMP_CLIENT_PREFIX + secrets.token_hex(4)
+temp_client_secret = secrets.token_urlsafe(32)
+
+bootstrap_temp_client(temp_client_id, temp_client_secret)
+try:
+    start_temp_server()
+    kcadmin.wait_ready()
+    kc = kcadmin.Client(temp_client_id, temp_client_secret)
+    agent_secret = setup_agent_client(kc)
+    # Check the new credentials before saving them
+    kcadmin.Client(kcadmin.AGENT_CLIENT_ID, agent_secret).token()
+    kcadmin.save_agent_secret(agent_secret)
+    delete_temp_clients(kc)
+finally:
+    stop_temp_server()
+print(f"Client {kcadmin.AGENT_CLIENT_ID} is ready", file=sys.stderr)

@@ -1,0 +1,36 @@
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+[Unit]
+Description=PostgreSQL server
+BindsTo=idp.service
+After=idp.service
+Before=keycloak-init.service keycloak.service
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=always
+ExecStartPre=/bin/rm -f %t/postgres.ctr-id
+# The server sends the readiness notification itself: the Debian-based
+# image is built with systemd support.
+ExecStart=/usr/bin/podman run \
+    --detach \
+    --sdnotify=container \
+    --cidfile=%t/postgres.ctr-id \
+    --cgroups=no-conmon \
+    --pod-id-file=%t/idp.pod-id \
+    --replace --name=%N \
+    --volume=pgdata:/var/lib/postgresql \
+    --env=POSTGRES_USER=keycloak \
+    --env=POSTGRES_DB=keycloak \
+    --env-file=./passwords.env \
+    ${POSTGRES_IMAGE} \
+        postgres -c listen_addresses=127.0.0.1
+ExecStop=/usr/bin/podman stop --ignore --cidfile=%t/postgres.ctr-id -t 10
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile=%t/postgres.ctr-id
+Type=notify
+NotifyAccess=all

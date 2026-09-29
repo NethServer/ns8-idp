@@ -1,33 +1,34 @@
 #
-# Copyright (C) 2023 Nethesis S.r.l.
+# Copyright (C) 2026 Nethesis S.r.l.
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
 #
-# This systemd unit starts a idp instance using Podman.
-# Most parts of this file come from podman-generate-systemd.
+# The idp pod holds the network namespace shared by the Keycloak and
+# PostgreSQL containers. Only the Keycloak HTTP port is published.
 #
 [Unit]
-Description=idp server
+Description=IdP pod (Keycloak and PostgreSQL)
+Requires=postgres.service keycloak.service
+Before=postgres.service keycloak-init.service keycloak.service
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n
 EnvironmentFile=%E/state/environment
 WorkingDirectory=%E/state
 Restart=always
-ExecStartPre=/bin/rm -f %t/idp.pid %t/idp.ctr-id
-ExecStartPre=-runagent discover-smarthost
-ExecStart=/usr/bin/podman run \
-    --detach \
-    --conmon-pidfile=%t/idp.pid \
-    --cidfile=%t/idp.ctr-id \
-    --cgroups=no-conmon \
-    --replace --name=%N \
+TimeoutStopSec=70
+ExecStartPre=/bin/rm -f %t/idp.pid %t/idp.pod-id
+ExecStartPre=/usr/bin/podman pod create \
+    --infra-conmon-pidfile=%t/idp.pid \
+    --pod-id-file=%t/idp.pod-id \
+    --name=%N \
+    --network=pasta \
     --publish=127.0.0.1:${TCP_PORT}:8080 \
-    --env-file=smarthost.env \
-    ${ECHO_SERVER_IMAGE}
-ExecStop=/usr/bin/podman stop --ignore --cidfile %t/idp.ctr-id -t 10
-ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/idp.ctr-id
+    --replace
+ExecStart=/usr/bin/podman pod start --pod-id-file=%t/idp.pod-id
+ExecStop=/usr/bin/podman pod stop --ignore --pod-id-file=%t/idp.pod-id -t 10
+ExecStopPost=/usr/bin/podman pod rm --ignore -f --pod-id-file=%t/idp.pod-id
 PIDFile=%t/idp.pid
 Type=forking
 

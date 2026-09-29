@@ -1,12 +1,14 @@
 #!/bin/bash
 
 #
-# Copyright (C) 2023 Nethesis S.r.l.
+# Copyright (C) 2026 Nethesis S.r.l.
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
 # If the control reaches this step, the service can be enabled and started
 
-touch smarthost.env
+set -e
 
-systemctl --user enable --now idp.service
+systemctl --user enable idp.service
+# List every unit: restarting the pod alone does not restart its containers
+systemctl --user restart idp.service postgres.service keycloak.service

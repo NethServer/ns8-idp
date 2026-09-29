@@ -1,0 +1,26 @@
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Create the ns8-agent admin client, or reset its secret if it has been
+# lost. It runs before Keycloak starts, and only if the secret file is
+# missing. Remove the file to recover the client credentials.
+#
+[Unit]
+Description=Keycloak initialization
+BindsTo=idp.service
+After=idp.service postgres.service
+Requires=postgres.service
+Before=keycloak.service
+ConditionPathExists=!%E/state/ns8-agent.json
+
+[Service]
+Type=oneshot
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+ExecStart=runagent keycloak-init
+ExecStopPost=/usr/bin/podman rm --ignore -f keycloak-init
+TimeoutStartSec=900
