@@ -9,7 +9,9 @@ import json
 import os
 import sys
 
+import agent
+
 json.dump({
     "host": os.getenv("IDP_HOSTNAME", ""),
-    "lets_encrypt": os.getenv("IDP_LETS_ENCRYPT", "") == "1",
+    "lets_encrypt": agent.get_route(os.environ["MODULE_ID"]).get("lets_encrypt", False),
 }, fp=sys.stdout)

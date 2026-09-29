@@ -105,15 +105,19 @@ remove this cost; it is not planned yet.
    Traefik, otherwise the action fails with the `host_already_used`
    validation error.
 2. `20route`: route the whole host name to the Keycloak port, with
-   HTTP to HTTPS redirection. If the Let's Encrypt certificate is not
-   obtained, the action fails and Traefik keeps the previous route.
-3. `30configure`: save `IDP_HOSTNAME` and `IDP_LETS_ENCRYPT`. It runs
-   after the route step, so a failed route leaves the settings and the
-   running services unchanged.
+   HTTP to HTTPS redirection. With `lets_encrypt_check`, if the Let's
+   Encrypt certificate is not obtained, the action fails and Traefik
+   keeps the previous route. With `lets_encrypt_cleanup`, disabling
+   Let's Encrypt removes the certificate.
+3. `30configure`: save `IDP_HOSTNAME`. It runs after the route step,
+   so a failed route leaves the settings and the running services
+   unchanged. The Let's Encrypt flag is not saved by the module: Traefik
+   stores it in the route.
 4. `80start_services`: restart the services, so Keycloak runs with the
    new `--hostname`.
 
-`get-configuration` returns the same fields. The Settings page of the UI
+`get-configuration` returns the same fields, reading `lets_encrypt`
+from the Traefik route with `agent.get_route()`. The Settings page of the UI
 is still the template form.
 
 ## Keycloak administration

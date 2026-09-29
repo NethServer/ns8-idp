@@ -25,4 +25,6 @@ agent.set_route({
     "path": None,
     "http2https": True,
     "lets_encrypt": request.get("lets_encrypt", False),
+    "lets_encrypt_check": True,
+    "lets_encrypt_cleanup": True,
 })

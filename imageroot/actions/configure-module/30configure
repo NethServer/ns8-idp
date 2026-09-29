@@ -12,7 +12,5 @@ import agent
 
 request = json.load(sys.stdin)
 
-agent.mset_env({
-    "IDP_HOSTNAME": request["host"],
-    "IDP_LETS_ENCRYPT": "1" if request.get("lets_encrypt", False) else "",
-})
+# The Let's Encrypt flag is stored by Traefik in the route
+agent.set_env("IDP_HOSTNAME", request["host"])
