@@ -118,7 +118,9 @@ remove this cost; it is not planned yet.
 
 `get-configuration` returns the same fields, reading `lets_encrypt`
 from the Traefik route with `agent.get_route()`. The Settings page of the UI
-is still the template form.
+has the host name field and the Let's Encrypt switch. It warns when Let's
+Encrypt is being disabled, and shows the Traefik messages when the
+certificate cannot be obtained.
 
 ## Keycloak administration
 
@@ -213,8 +215,6 @@ Keycloak starts:
 - `etc/state-include.conf` and the PostgreSQL dump for backup and
   restore.
 - Realm creation per user domain and LDAP federation.
-- The Settings page fields for `host` and `lets_encrypt`, and the
-  `host_already_used` message.
 - Keycloak admin console exposure on the public host name.
 - A custom Keycloak image with the providers built in. The
   `kc-providers` volume of the prototype is not mounted until then.

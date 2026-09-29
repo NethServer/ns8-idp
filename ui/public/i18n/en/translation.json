@@ -24,7 +24,12 @@
         "title": "Settings",
         "configure_instance": "Configure {instance}",
         "save": "Save",
-        "test_field": "Test field"
+        "host": "Host name",
+        "host_placeholder": "e.g. sso.example.org",
+        "host_tooltip": "Fully qualified domain name of the identity provider. Applications redirect users to this host name for the login.",
+        "host_already_used": "The host name is already used by another application",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
     },
     "about": {
         "title": "About"

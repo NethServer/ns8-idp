@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2023 Nethesis S.r.l.
+  Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <template>
@@ -23,15 +23,90 @@
       <cv-column>
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
-            <!-- TODO remove test field and code configuration fields -->
-            <cv-text-input
-              :label="$t('settings.test_field')"
-              v-model="testField"
-              :placeholder="$t('settings.test_field')"
-              :disabled="loading.getConfiguration || loading.configureModule"
-              :invalid-message="error.testField"
-              ref="testField"
-            ></cv-text-input>
+            <NsTextInput
+              :label="$t('settings.host')"
+              :placeholder="$t('settings.host_placeholder')"
+              v-model.trim="host"
+              :invalid-message="error.host"
+              :disabled="loadingUi"
+              ref="host"
+            >
+              <template #tooltip>
+                {{ $t("settings.host_tooltip") }}
+              </template>
+            </NsTextInput>
+            <NsToggle
+              value="letsEncrypt"
+              :label="core.$t('apps_lets_encrypt.request_https_certificate')"
+              v-model="isLetsEncryptEnabled"
+              :disabled="loadingUi"
+            >
+              <template #tooltip>
+                <div class="mg-bottom-sm">
+                  {{ core.$t("apps_lets_encrypt.lets_encrypt_tips") }}
+                </div>
+                <div class="mg-bottom-sm">
+                  <cv-link @click="goToCertificates">
+                    {{ core.$t("apps_lets_encrypt.go_to_tls_certificates") }}
+                  </cv-link>
+                </div>
+              </template>
+              <template slot="text-left">{{
+                $t("settings.disabled")
+              }}</template>
+              <template slot="text-right">{{
+                $t("settings.enabled")
+              }}</template>
+            </NsToggle>
+            <cv-row
+              v-if="isLetsEncryptCurrentlyEnabled && !isLetsEncryptEnabled"
+            >
+              <cv-column>
+                <NsInlineNotification
+                  kind="warning"
+                  :title="
+                    core.$t('apps_lets_encrypt.lets_encrypt_disabled_warning')
+                  "
+                  :description="
+                    core.$t(
+                      'apps_lets_encrypt.lets_encrypt_disabled_warning_description',
+                      { node: nodeLabel }
+                    )
+                  "
+                  :showCloseButton="false"
+                />
+              </cv-column>
+            </cv-row>
+            <cv-row v-if="error.getStatus">
+              <cv-column>
+                <NsInlineNotification
+                  kind="error"
+                  :title="$t('action.get-status')"
+                  :description="error.getStatus"
+                  :showCloseButton="false"
+                />
+              </cv-column>
+            </cv-row>
+            <cv-row v-if="certificateErrorDetails.length">
+              <cv-column>
+                <NsInlineNotification
+                  kind="error"
+                  :title="
+                    core.$t('apps_lets_encrypt.cannot_obtain_certificate')
+                  "
+                  :showCloseButton="false"
+                >
+                  <template #description>
+                    <div
+                      v-for="(detail, index) in certificateErrorDetails"
+                      :key="index"
+                    >
+                      {{ detail }}
+                    </div>
+                  </template>
+                </NsInlineNotification>
+              </cv-column>
+            </cv-row>
             <cv-row v-if="error.configureModule">
               <cv-column>
                 <NsInlineNotification
@@ -46,7 +121,7 @@
               kind="primary"
               :icon="Save20"
               :loading="loading.configureModule"
-              :disabled="loading.getConfiguration || loading.configureModule"
+              :disabled="loadingUi"
               >{{ $t("settings.save") }}</NsButton
             >
           </cv-form>
@@ -85,21 +160,37 @@ export default {
         page: "settings",
       },
       urlCheckInterval: null,
-      testField: "", // TODO remove
+      host: "",
+      isLetsEncryptEnabled: false,
+      isLetsEncryptCurrentlyEnabled: false,
+      status: {},
+      certificateErrorDetails: [],
       loading: {
         getConfiguration: false,
+        getStatus: false,
         configureModule: false,
       },
       error: {
         getConfiguration: "",
+        getStatus: "",
         configureModule: "",
-        testField: "", // TODO remove
-        // TODO add all validation error fields
+        host: "",
+        lets_encrypt: "",
       },
     };
   },
   computed: {
     ...mapState(["instanceName", "core", "appName"]),
+    loadingUi() {
+      return (
+        this.loading.getConfiguration ||
+        this.loading.getStatus ||
+        this.loading.configureModule
+      );
+    },
+    nodeLabel() {
+      return this.status.node_ui_name || this.status.node || "";
+    },
   },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
@@ -113,8 +204,12 @@ export default {
   },
   created() {
     this.getConfiguration();
+    this.getStatus();
   },
   methods: {
+    goToCertificates() {
+      this.core.$router.push("/settings/tls-certificates");
+    },
     async getConfiguration() {
       this.loading.getConfiguration = true;
       this.error.getConfiguration = "";
@@ -158,55 +253,98 @@ export default {
       this.loading.getConfiguration = false;
     },
     getConfigurationCompleted(taskContext, taskResult) {
-      this.loading.getConfiguration = false;
       const config = taskResult.output;
+      this.host = config.host;
+      this.isLetsEncryptEnabled = config.lets_encrypt;
+      this.isLetsEncryptCurrentlyEnabled = config.lets_encrypt;
+      this.loading.getConfiguration = false;
+      this.focusElement("host");
+    },
+    async getStatus() {
+      this.loading.getStatus = true;
+      this.error.getStatus = "";
+      const taskAction = "get-status";
+      const eventId = this.getUuid();
 
-      // TODO set configuration fields
-      // ...
+      // register to task error
+      this.core.$root.$once(
+        `${taskAction}-aborted-${eventId}`,
+        this.getStatusAborted
+      );
 
-      // TODO remove
-      console.log("config", config);
+      // register to task completion
+      this.core.$root.$once(
+        `${taskAction}-completed-${eventId}`,
+        this.getStatusCompleted
+      );
 
-      // TODO focus first configuration field
-      this.focusElement("testField");
+      const res = await to(
+        this.createModuleTaskForApp(this.instanceName, {
+          action: taskAction,
+          extra: {
+            title: this.$t("action." + taskAction),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      const err = res[0];
+
+      if (err) {
+        console.error(`error creating task ${taskAction}`, err);
+        this.error.getStatus = this.getErrorMessage(err);
+        this.loading.getStatus = false;
+        return;
+      }
+    },
+    getStatusAborted(taskResult, taskContext) {
+      console.error(`${taskContext.action} aborted`, taskResult);
+      this.error.getStatus = this.$t("error.generic_error");
+      this.loading.getStatus = false;
+    },
+    getStatusCompleted(taskContext, taskResult) {
+      this.status = taskResult.output;
+      this.loading.getStatus = false;
     },
     validateConfigureModule() {
       this.clearErrors(this);
-      let isValidationOk = true;
+      this.certificateErrorDetails = [];
 
-      // TODO remove testField and validate configuration fields
-      if (!this.testField) {
-        // test field cannot be empty
-        this.error.testField = this.$t("common.required");
-
-        if (isValidationOk) {
-          this.focusElement("testField");
-          isValidationOk = false;
-        }
+      if (!this.host) {
+        this.error.host = this.$t("common.required");
+        this.focusElement("host");
+        return false;
       }
-      return isValidationOk;
+      return true;
     },
     configureModuleValidationFailed(validationErrors) {
       this.loading.configureModule = false;
       let focusAlreadySet = false;
 
       for (const validationError of validationErrors) {
-        const field = validationError.field;
+        if (validationError.details) {
+          // Traefik cannot obtain the Let's Encrypt certificate: show
+          // its messages in an inline notification
+          this.certificateErrorDetails = validationError.details
+            .split("\n")
+            .filter((detail) => detail.trim() !== "");
+          continue;
+        }
+        const param = validationError.parameter;
 
-        if (field !== "(root)") {
+        if (param in this.error) {
           // set i18n error message
-          this.error[field] = this.$t("settings." + validationError.error);
+          this.error[param] = this.$t("settings." + validationError.error);
 
           if (!focusAlreadySet) {
-            this.focusElement(field);
+            this.focusElement(param);
             focusAlreadySet = true;
           }
         }
       }
     },
     async configureModule() {
-      const isValidationOk = this.validateConfigureModule();
-      if (!isValidationOk) {
+      if (!this.validateConfigureModule()) {
         return;
       }
 
@@ -236,7 +374,8 @@ export default {
         this.createModuleTaskForApp(this.instanceName, {
           action: taskAction,
           data: {
-            // TODO configuration fields
+            host: this.host,
+            lets_encrypt: this.isLetsEncryptEnabled,
           },
           extra: {
             title: this.$t("settings.configure_instance", {
@@ -273,4 +412,8 @@ export default {
 
 <style scoped lang="scss">
 @import "../styles/carbon-utils";
+
+.cv-form .bx--form-item {
+  margin-bottom: $spacing-06;
+}
 </style>
