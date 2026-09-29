@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Apply the settings that must follow the node configuration to every
+# realm managed by the module. It runs after every Keycloak start, and
+# when such settings change.
+#
+
+import os
+import sys
+
+import agent
+import kcadmin
+
+def smtp_server_rep(settings):
+    """Map the node smarthost settings to a realm smtpServer
+    representation. The TLS certificate verification is a server-wide
+    setting of Keycloak and it is not mapped."""
+    if not settings["enabled"] or not settings["host"]:
+        return {}
+    rep = {
+        "host": settings["host"],
+        "port": str(settings["port"]),
+        "from": os.environ.get("IDP_SMTP_FROM") or "no-reply@" + os.environ["IDP_HOSTNAME"],
+        "fromDisplayName": "Single Sign-On",
+        "starttls": "true" if settings["encrypt_smtp"] == "starttls" else "false",
+        "ssl": "true" if settings["encrypt_smtp"] == "tls" else "false",
+        "auth": "true" if settings["username"] else "false",
+    }
+    if settings["username"]:
+        rep["user"] = settings["username"]
+        rep["password"] = settings["password"]
+    return rep
+
+rdb = agent.redis_connect(use_replica=True)
+smtp_server = smtp_server_rep(agent.get_smarthost_settings(rdb))
+
+kc = kcadmin.agent_client()
+for realm in kcadmin.managed_realms(kc):
+    print(f"Applying SMTP settings to realm {realm}", file=sys.stderr)
+    kc.put(f"/{realm}", {"smtpServer": smtp_server})
