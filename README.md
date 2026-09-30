@@ -66,8 +66,11 @@ until the server is really ready:
 - PostgreSQL uses the Debian-based image, which is built with systemd
   support, and notifies readiness itself (`--sdnotify=container`).
 - Keycloak is ready when a Podman health check on its `/health/ready`
-  endpoint passes (`--sdnotify=healthy`). The management port of the
-  endpoint is not published by the pod.
+  endpoint passes (`--sdnotify=healthy`). The probe is the
+  `ns8-healthcheck` script of the Keycloak image; at startup it waits
+  until Keycloak is ready, so it runs once instead of failing every few
+  seconds. The management port of the endpoint is not published by the
+  pod.
 
 The pod uses the Pasta network. Pasta delivers connections from the host
 loopback interface to the pod with the host address as source, not

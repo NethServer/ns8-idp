@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Check the Keycloak readiness endpoint on the management port. The
+# image has no curl: the request goes through a bash /dev/tcp socket.
+#
+# Usage: ns8-healthcheck [--wait]
+#
+#   --wait  retry until Keycloak is ready, for the startup health check:
+#           Podman runs it once instead of logging a failed check every
+#           few seconds.
+#
+
+probe() {
+    # The subshell keeps a failed exec redirection from terminating the
+    # script
+    (
+        exec 3<>/dev/tcp/127.0.0.1/9000 &&
+        printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 &&
+        grep -q '"UP"' <&3
+    ) 2>/dev/null
+}
+
+if [[ ${1} == --wait ]]; then
+    until probe; do
+        sleep 1
+    done
+else
+    probe
+fi

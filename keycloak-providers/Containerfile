@@ -35,6 +35,8 @@ FROM quay.io/keycloak/keycloak:26.7.4-0
 # Copy only what kc.sh build changes, to keep the base layers shared
 COPY --from=builder /opt/keycloak/lib/quarkus/ /opt/keycloak/lib/quarkus/
 COPY --from=builder /opt/keycloak/providers/ /opt/keycloak/providers/
+# Readiness probe for the Podman health checks of keycloak.service
+COPY --chmod=0755 ns8-healthcheck /opt/keycloak/bin/
 USER 1000
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
 CMD ["start", "--optimized"]
