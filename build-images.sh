@@ -31,6 +31,14 @@ buildah run \
     nodebuilder-idp \
     sh -c "corepack enable && yarn install && yarn build"
 
+# Build the Keycloak image, with the NS8 providers built in
+echo "Building the Keycloak image..."
+buildah build --force-rm --layers --jobs=0 \
+    --file keycloak-providers/Containerfile \
+    --tag "${repobase}/idp-keycloak" \
+    keycloak-providers
+images+=("${repobase}/idp-keycloak")
+
 # Add imageroot directory to the container image
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
@@ -39,7 +47,7 @@ buildah config --entrypoint=/ \
     --label="org.nethserver.authorizations=traefik@node:routeadm samba@any:domadm openldap@any:domadm" \
     --label="org.nethserver.tcp-ports-demand=1" \
     --label="org.nethserver.rootfull=0" \
-    --label="org.nethserver.images=quay.io/keycloak/keycloak:26.7.4-0 docker.io/library/postgres:18.6-trixie" \
+    --label="org.nethserver.images=${repobase}/idp-keycloak:${IMAGETAG:-latest} docker.io/library/postgres:18.6-trixie" \
     "${container}"
 # Commit the image
 buildah commit "${container}" "${repobase}/${reponame}"

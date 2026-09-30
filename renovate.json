@@ -1,4 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>NethServer/.github:ns8-automerge"]
+  "extends": ["local>NethServer/.github:ns8-automerge"],
+  "packageRules": [
+    {
+      "description": "The providers must be built against the Keycloak version of the base image",
+      "groupName": "Keycloak",
+      "matchPackageNames": ["quay.io/keycloak/keycloak", "/^org\\.keycloak:/"]
+    }
+  ]
 }

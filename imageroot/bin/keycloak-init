@@ -37,8 +37,8 @@ def bootstrap_temp_client(client_id, client_secret):
     print(f"Creating temporary client {client_id}...", file=sys.stderr)
     subprocess.run(podman_args() + [
         "--rm", "--env=KC_TEMP_SECRET",
-        os.environ["KEYCLOAK_IMAGE"],
-        "bootstrap-admin", "service",
+        os.environ["IDP_KEYCLOAK_IMAGE"],
+        "bootstrap-admin", "service", "--optimized",
         "--client-id=" + client_id,
         "--client-secret:env=KC_TEMP_SECRET",
     ], env=dict(os.environ, KC_TEMP_SECRET=client_secret),
@@ -50,11 +50,10 @@ def start_temp_server():
     print("Starting temporary Keycloak server...", file=sys.stderr)
     subprocess.run(podman_args() + [
         "--detach", "--replace", "--name=" + TEMP_CONTAINER,
-        os.environ["KEYCLOAK_IMAGE"],
-        # Same options of keycloak.service, to avoid a rebuild. The
-        # HTTPS hostname also satisfies the "external" SSL requirement
-        # of the master realm.
-        "start", "--hostname=https://" + os.environ["IDP_HOSTNAME"],
+        os.environ["IDP_KEYCLOAK_IMAGE"],
+        # The HTTPS hostname satisfies the "external" SSL requirement of
+        # the master realm
+        "start", "--optimized", "--hostname=https://" + os.environ["IDP_HOSTNAME"],
     ], stdout=sys.stderr, check=True)
 
 def stop_temp_server():

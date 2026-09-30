@@ -14,8 +14,7 @@ Environment=PODMAN_SYSTEMD_UNIT=%n
 EnvironmentFile=%E/state/environment
 WorkingDirectory=%E/state
 Restart=always
-# Keycloak rebuilds its configuration at every start
-TimeoutStartSec=300
+TimeoutStartSec=180
 ExecStartPre=/bin/rm -f %t/keycloak.ctr-id
 # The unit is active when the health check reports Keycloak as ready.
 # The image has no curl: the check is a bash /dev/tcp request to the
@@ -33,8 +32,8 @@ ExecStart=/usr/bin/podman run \
     --replace --name=%N \
     --env-file=%E/etc/keycloak.env \
     --env-file=./passwords.env \
-    ${KEYCLOAK_IMAGE} \
-        start \
+    ${IDP_KEYCLOAK_IMAGE} \
+        start --optimized \
         --hostname=https://${IDP_HOSTNAME}
 ExecStartPost=-runagent keycloak-post-start
 ExecStop=/usr/bin/podman stop --ignore --cidfile=%t/keycloak.ctr-id -t 30

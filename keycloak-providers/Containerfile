@@ -1,0 +1,40 @@
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Keycloak image of the idp module: the NS8 providers and the build-time
+# options are built in, so the server starts with --optimized.
+#
+
+# Build the provider jars
+FROM docker.io/library/maven:3.9.16-eclipse-temurin-21 AS providers
+WORKDIR /usr/src
+COPY ns8-authenticators ns8-authenticators
+COPY ns8-mappers ns8-mappers
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -q -f ns8-authenticators/pom.xml package \
+    && mkdir /providers \
+    && cp ns8-authenticators/target/ns8-authenticators.jar /providers/ \
+    && jar --create --file /providers/ns8-mappers.jar -C ns8-mappers .
+
+# Build the Quarkus configuration with the build-time options and the
+# providers. Runtime options are passed by the systemd units.
+FROM quay.io/keycloak/keycloak:26.7.4-0 AS builder
+ENV KC_DB=postgres \
+    KC_FEATURES=scripts \
+    KC_HEALTH_ENABLED=true \
+    KC_CACHE=local
+COPY --from=providers /providers/ /opt/keycloak/providers/
+RUN /opt/keycloak/bin/kc.sh build
+
+# The upstream image is already minimal (UBI micro) and runs as the
+# non-root keycloak user
+FROM quay.io/keycloak/keycloak:26.7.4-0
+# Copy only what kc.sh build changes, to keep the base layers shared
+COPY --from=builder /opt/keycloak/lib/quarkus/ /opt/keycloak/lib/quarkus/
+COPY --from=builder /opt/keycloak/providers/ /opt/keycloak/providers/
+USER 1000
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+CMD ["start", "--optimized"]
