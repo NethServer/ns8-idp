@@ -9,7 +9,7 @@
 #
 [Unit]
 Description=IdP pod (Keycloak and PostgreSQL)
-Requires=postgres.service keycloak.service
+Wants=postgres.service keycloak.service
 Before=postgres.service keycloak-init.service keycloak.service
 
 [Service]
