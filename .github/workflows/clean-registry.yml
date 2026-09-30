@@ -10,10 +10,10 @@ permissions:
 jobs:
   delete_images:
     name: "Delete ghcr.io images ${{ github.event.ref }}"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: Registry
     steps:
       - uses: NethServer/ns8-github-actions/.github/actions/delete-image@v1
         with:
-          images: "idp"
+          images: "idp idp-keycloak"
           delete_image_token: ${{ secrets.IMAGES_CLEANUP_TOKEN }}

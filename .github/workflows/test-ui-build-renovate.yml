@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # Only run if the PR head branch starts with 'renovate-'
     if: startsWith(github.head_ref, 'renovate-')

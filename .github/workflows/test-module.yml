@@ -1,4 +1,6 @@
 name: Test module
+# The run belongs to the default branch under workflow_run: name the tested one.
+run-name: "Test ${{ github.event.workflow_run.head_branch || github.ref_name }} on QEMU"
 
 on:
   workflow_dispatch:
@@ -12,11 +14,13 @@ on:
     types: [completed]
 
 jobs:
-  run:
-    name: "Run tests"
-    uses: NethServer/ns8-github-actions/.github/workflows/test-module.yml@v1
+  run_tests:
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    # TODO: switch back to @v1 when NethServer/ns8-github-actions#67 is merged
+    uses: NethServer/ns8-github-actions/.github/workflows/test-module-qemu.yml@feat-qemu-alternate-legs
     with:
-      ui_tests_strategy: on_renovate_ui_change
+      ci_actions_ref: feat-qemu-alternate-legs
       debug_shell: ${{ github.event.inputs.debug_shell == 'true' }}
-    secrets:
-      do_token: ${{ secrets.do_token }}
