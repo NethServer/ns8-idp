@@ -18,7 +18,8 @@ TimeoutStartSec=180
 ExecStartPre=/bin/rm -f %t/keycloak.ctr-id
 # The unit is active when the health check reports Keycloak as ready.
 # The probe script of the image waits until Keycloak is ready in the
-# startup check, so Podman runs it once per start.
+# startup check, so Podman runs it once per start. After 3 consecutive
+# failed checks Podman kills the container, and systemd restarts it.
 ExecStart=/usr/bin/podman run \
     --detach \
     --sdnotify=healthy \
@@ -26,7 +27,8 @@ ExecStart=/usr/bin/podman run \
     --health-startup-timeout=150s \
     --health-startup-interval=2s \
     --health-cmd=/opt/keycloak/bin/ns8-healthcheck \
-    --health-interval=60s \
+    --health-interval=30s \
+    --health-on-failure=kill \
     --cidfile=%t/keycloak.ctr-id \
     --cgroups=no-conmon \
     --pod-id-file=%t/idp.pod-id \

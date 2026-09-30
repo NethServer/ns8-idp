@@ -7,7 +7,6 @@
 
 import json
 import os
-import socket
 import sys
 
 import agent
@@ -27,7 +26,7 @@ host = request["host"]
 
 # The node host name is used by the cluster-admin UI and other node
 # services
-if host.lower() == socket.getfqdn().lower():
+if host.lower() == agent.get_hostname().lower():
     fail_validation(host, "host_is_node_fqdn")
 
 # A changed host name must not be routed to another application

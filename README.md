@@ -69,8 +69,9 @@ until the server is really ready:
   endpoint passes (`--sdnotify=healthy`). The probe is the
   `ns8-healthcheck` script of the Keycloak image; at startup it waits
   until Keycloak is ready, so it runs once instead of failing every few
-  seconds. The management port of the endpoint is not published by the
-  pod.
+  seconds. Later the check runs every 30 seconds: after 3 consecutive
+  failures Podman kills the container, and systemd restarts it. The
+  management port of the endpoint is not published by the pod.
 
 The pod uses the Pasta network. Pasta delivers connections from the host
 loopback interface to the pod with the host address as source, not
