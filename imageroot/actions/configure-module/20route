@@ -22,7 +22,6 @@ agent.set_route({
     "instance": os.environ["MODULE_ID"],
     "url": "http://127.0.0.1:" + os.environ["TCP_PORT"],
     "host": request["host"],
-    "path": None,
     "http2https": True,
     "lets_encrypt": request.get("lets_encrypt", False),
     "lets_encrypt_check": True,

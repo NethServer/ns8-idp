@@ -5,12 +5,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-# Run the new images and units. Services of a module that is not
-# configured yet are not running, and stay stopped.
+# Run the new images and units: the core has already reloaded the unit
+# files. Services of a module that is not configured yet are not
+# running, and stay stopped.
 
 set -e
 exec 1>&2
 
-systemctl --user daemon-reload
 # List every unit: restarting the pod alone does not restart its containers
 systemctl --user try-restart idp.service postgres.service keycloak.service

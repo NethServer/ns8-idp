@@ -7,20 +7,29 @@
 
 import json
 import os
+import socket
 import sys
 
 import agent
 
-request = json.load(sys.stdin)
-host = request["host"]
-
-# A changed host name must not be routed to another application
-if host != os.getenv("IDP_HOSTNAME") and agent.http_route_in_use(domain=host):
+def fail_validation(host, error):
     agent.set_status("validation-failed")
     json.dump([{
         "field": "host",
         "parameter": "host",
         "value": host,
-        "error": "host_already_used",
+        "error": error,
     }], fp=sys.stdout)
     sys.exit(2)
+
+request = json.load(sys.stdin)
+host = request["host"]
+
+# The node host name is used by the cluster-admin UI and other node
+# services
+if host.lower() == socket.getfqdn().lower():
+    fail_validation(host, "host_is_node_fqdn")
+
+# A changed host name must not be routed to another application
+if host != os.getenv("IDP_HOSTNAME") and agent.http_route_in_use(domain=host):
+    fail_validation(host, "host_already_used")

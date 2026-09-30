@@ -28,6 +28,7 @@
         "host_placeholder": "e.g. sso.example.org",
         "host_tooltip": "Fully qualified domain name of the identity provider. Applications redirect users to this host name for the login.",
         "host_already_used": "The host name is already used by another application",
+        "host_is_node_fqdn": "The host name of the node cannot be used",
         "enabled": "Enabled",
         "disabled": "Disabled"
     },
