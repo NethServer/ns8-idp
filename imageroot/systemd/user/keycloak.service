@@ -18,11 +18,15 @@ TimeoutStartSec=180
 ExecStartPre=/bin/rm -f %t/keycloak.ctr-id
 # The unit is active when the health check reports Keycloak as ready.
 # The image has no curl: the check is a bash /dev/tcp request to the
-# management port.
+# management port. The startup check waits internally until Keycloak is
+# ready, so each start runs it once instead of logging a failed check
+# every few seconds; each attempt runs in a subshell, because a failed
+# exec redirection terminates the shell.
 ExecStart=/usr/bin/podman run \
     --detach \
     --sdnotify=healthy \
-    --health-startup-cmd='exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /health/ready HTTP/1.0\\r\\n\\r\\n" >&3 && grep -q UP <&3' \
+    --health-startup-cmd='until (exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /health/ready HTTP/1.0\\r\\n\\r\\n" >&3 && grep -q UP <&3) 2>/dev/null; do sleep 1; done' \
+    --health-startup-timeout=150s \
     --health-startup-interval=2s \
     --health-cmd='exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /health/ready HTTP/1.0\\r\\n\\r\\n" >&3 && grep -q UP <&3' \
     --health-interval=60s \

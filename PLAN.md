@@ -69,7 +69,10 @@ server accepts connections, and units ordered after it wait for that:
 - Keycloak runs with `--sdnotify=healthy` and a Podman health check on
   `/health/ready` of the management port 9000, inside the container.
   The image has no curl, so the check is a bash `/dev/tcp` request. The
-  management port is not published by the pod.
+  management port is not published by the pod. The startup check loops
+  internally until Keycloak is ready (`--health-startup-timeout=150s`):
+  Podman runs it once per start, so the journal has no failed check
+  units while Keycloak starts.
 
 Keycloak answers 503 to requests received while it bootstraps. The
 HTTP helper retries on connection errors and 503 responses for a short
@@ -95,8 +98,7 @@ The module builds its own Keycloak image, `idp-keycloak`, from
 Every server, including `bootstrap-admin` and the temporary server of
 the init job, runs with `--optimized`. Measured on rl1: a Keycloak
 restart takes about 20 s instead of 40 s, and the credential recovery
-of the init job about 1 minute instead of 2. During startup the health
-check still fails a few times (about 10 s) before Keycloak is ready.
+of the init job about 1 minute instead of 2.
 
 Renovate groups the base image tag and the `org.keycloak` Maven
 dependencies of the providers in one update, so the providers are
