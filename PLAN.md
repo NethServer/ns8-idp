@@ -237,6 +237,26 @@ Keycloak starts:
   Keycloak is not running, the script exits with success: the next
   start applies the settings.
 
+## Tests
+
+The Robot Framework suite in `tests/` runs in the two scenarios of the
+NS8 test workflow, selected by the `SCENARIO` variable:
+
+- `install`: install the module image under test, configure it without
+  Let's Encrypt, and verify it.
+- `update`: install the latest stable release, configure it, update it
+  to the image under test with `update-module`, and verify it. The
+  suite is skipped while idp has no stable release.
+
+The verification checks that the pod units are active, that Keycloak
+runs the image of the module, that the OIDC discovery document is
+served through Traefik with the configured issuer, and that the
+`ns8-agent` credentials are accepted by the admin API.
+
+`update-module.d/80restart` reloads the units and restarts the running
+services, so an update takes effect immediately. A module that is not
+configured yet stays stopped.
+
 ## Open points
 
 - `etc/state-include.conf` and the PostgreSQL dump for backup and

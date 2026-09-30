@@ -3,10 +3,11 @@ Library           SSHLibrary
 
 *** Variables ***
 ${SSH_KEYFILE}    %{HOME}/.ssh/id_ecdsa
+${SSH_PORT}       22
 
 *** Keywords ***
 Connect to the node
-    Open Connection   ${NODE_ADDR}
+    Open Connection   ${NODE_ADDR}    port=${SSH_PORT}
     Login With Public Key    root    ${SSH_KEYFILE}
     ${output} =    Execute Command    systemctl is-system-running  --wait
     Should Be True    '${output}' == 'running' or '${output}' == 'degraded'
