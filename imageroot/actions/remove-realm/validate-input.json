@@ -1,0 +1,28 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "remove-realm input",
+    "$id": "http://schema.nethserver.org/idp/remove-realm-input.json",
+    "description": "Remove a realm and unbind the idp from its user domain. The clients of the realm are removed too: modules must register them again",
+    "examples": [
+        {
+            "domain": "dp.example.org",
+            "force": true
+        }
+    ],
+    "type": "object",
+    "required": [
+        "domain"
+    ],
+    "properties": {
+        "domain": {
+            "description": "User domain, which is also the realm name",
+            "type": "string",
+            "minLength": 1
+        },
+        "force": {
+            "description": "Remove the realm even if it has clients of NS8 modules",
+            "type": "boolean",
+            "default": false
+        }
+    }
+}

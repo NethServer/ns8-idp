@@ -7,22 +7,11 @@
 
 import json
 import os
-import subprocess
 import sys
 
 import agent
 import idprealm
 import kcadmin
-
-def fail_validation(parameter, value, error):
-    agent.set_status("validation-failed")
-    json.dump([{
-        "field": parameter,
-        "parameter": parameter,
-        "value": value,
-        "error": error,
-    }], fp=sys.stdout)
-    sys.exit(2)
 
 request = json.load(sys.stdin)
 domain = request["domain"]
@@ -33,31 +22,24 @@ domain = request["domain"]
 task_user = os.getenv("AGENT_TASK_USER", "")
 if task_user:
     if "module_id" in request:
-        fail_validation("module_id", request["module_id"], "module_id_not_allowed")
+        idprealm.fail_validation("module_id", request["module_id"], "module_id_not_allowed")
     if not task_user.startswith("module/"):
-        fail_validation("module_id", task_user, "caller_not_a_module")
+        idprealm.fail_validation("module_id", task_user, "caller_not_a_module")
     module_id = task_user.removeprefix("module/")
 elif "module_id" in request:
     module_id = request["module_id"]
 else:
-    fail_validation("module_id", "", "module_id_required")
+    idprealm.fail_validation("module_id", "", "module_id_required")
 
 rdb = agent.redis_connect(use_replica=True)
 module_domains = (rdb.hget("cluster/module_domains", module_id) or "").split()
 if domain not in module_domains:
-    fail_validation("domain", domain, "domain_not_bound_to_module")
+    idprealm.fail_validation("domain", domain, "domain_not_bound_to_module")
 
-if subprocess.run(["systemctl", "--user", "-q", "is-active", "keycloak.service"]).returncode != 0:
-    print(agent.SD_ERR + "keycloak.service is not active", file=sys.stderr)
-    sys.exit(1)
+idprealm.require_keycloak()
 
-# Serialize the registrations: the domain binding is replaced as a
-# whole, and concurrent realm creations would conflict
-with agent.exclusive_file_lock("register-client"):
-    bound_domains = agent.get_bound_domain_list(rdb)
-    if domain not in bound_domains:
-        agent.bind_user_domains(bound_domains + [domain], check=True)
-
+with idprealm.realms_lock():
+    idprealm.bind_domain(domain)
     kc = kcadmin.agent_client()
     idprealm.ensure_realm(kc, domain)
     client_secret = idprealm.ensure_client(kc, domain, module_id,
@@ -72,5 +54,5 @@ json.dump({
     "client_id": module_id,
     "client_secret": client_secret,
     "realm": domain,
-    "issuer": f"https://{os.environ['IDP_HOSTNAME']}/realms/{domain}",
+    "issuer": idprealm.issuer_url(domain),
 }, fp=sys.stdout)

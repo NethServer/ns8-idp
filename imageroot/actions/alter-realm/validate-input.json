@@ -1,0 +1,27 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "alter-realm input",
+    "$id": "http://schema.nethserver.org/idp/alter-realm-input.json",
+    "description": "Change the settings of a realm",
+    "examples": [
+        {
+            "domain": "dp.example.org",
+            "enabled": false
+        }
+    ],
+    "type": "object",
+    "required": [
+        "domain"
+    ],
+    "properties": {
+        "domain": {
+            "description": "User domain, which is also the realm name",
+            "type": "string",
+            "minLength": 1
+        },
+        "enabled": {
+            "description": "A disabled realm refuses the logins of all its clients",
+            "type": "boolean"
+        }
+    }
+}

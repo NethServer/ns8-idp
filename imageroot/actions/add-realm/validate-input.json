@@ -1,0 +1,22 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-realm input",
+    "$id": "http://schema.nethserver.org/idp/add-realm-input.json",
+    "description": "Create the realm of a user domain, before any client registers in it. The idp is bound to the user domain",
+    "examples": [
+        {
+            "domain": "dp.example.org"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "domain"
+    ],
+    "properties": {
+        "domain": {
+            "description": "User domain, which is also the realm name",
+            "type": "string",
+            "minLength": 1
+        }
+    }
+}

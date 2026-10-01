@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+
+idprealm.require_keycloak()
+kc = kcadmin.agent_client()
+if domain not in kcadmin.managed_realms(kc):
+    idprealm.fail_validation("domain", domain, "realm_not_found")
+
+if "enabled" in request:
+    # A disabled realm refuses the logins of all its clients
+    kc.put(f"/{domain}", {"enabled": request["enabled"]})

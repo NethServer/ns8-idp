@@ -1,0 +1,79 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-realms output",
+    "$id": "http://schema.nethserver.org/idp/list-realms-output.json",
+    "description": "Realms of the idp, with the clients of NS8 modules",
+    "examples": [
+        {
+            "realms": [
+                {
+                    "name": "dp.example.org",
+                    "enabled": true,
+                    "issuer": "https://sso.example.org/realms/dp.example.org",
+                    "user_domain_found": true,
+                    "clients": [
+                        {
+                            "client_id": "nextcloud1",
+                            "enabled": true
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "type": "object",
+    "required": [
+        "realms"
+    ],
+    "properties": {
+        "realms": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "enabled",
+                    "issuer",
+                    "user_domain_found",
+                    "clients"
+                ],
+                "properties": {
+                    "name": {
+                        "description": "Realm name, which is also the user domain name",
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "issuer": {
+                        "description": "OIDC issuer URL",
+                        "type": "string"
+                    },
+                    "user_domain_found": {
+                        "description": "False if the user domain of the realm was removed from the cluster",
+                        "type": "boolean"
+                    },
+                    "clients": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "client_id",
+                                "enabled"
+                            ],
+                            "properties": {
+                                "client_id": {
+                                    "description": "Module ID, owner of the client",
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

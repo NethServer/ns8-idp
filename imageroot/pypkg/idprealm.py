@@ -10,9 +10,14 @@ a read-only LDAP federation through ldapproxy. Every OIDC client is
 owned by an NS8 module: the client ID is the module ID.
 """
 
+import contextlib
+import json
+import os
 import secrets
+import subprocess
 import sys
 
+import agent
 import agent.ldapproxy
 import kcadmin
 
@@ -23,6 +28,51 @@ LDAP_UUID_SCOPE = "ldap_uuid"
 MODULE_ATTRIBUTE = "ns8.module_id"
 # ldapproxy listens on the node VPN address, reachable from the pod
 LDAPPROXY_HOST = "cluster-localnode"
+
+def fail_validation(parameter, value, error):
+    """Abort the action with a validation error of one parameter."""
+    agent.set_status("validation-failed")
+    json.dump([{
+        "field": parameter,
+        "parameter": parameter,
+        "value": value,
+        "error": error,
+    }], fp=sys.stdout)
+    sys.exit(2)
+
+@contextlib.contextmanager
+def realms_lock():
+    """Serialize the changes to realms and to the domain binding of the
+    module: the binding is replaced as a whole."""
+    with agent.exclusive_file_lock("realms"):
+        yield
+
+def _bound_domains():
+    # Read the leader: a replica could miss a binding just changed
+    return agent.get_bound_domain_list(agent.redis_connect())
+
+def bind_domain(domain):
+    """Add a user domain to the bound domains of the module. Call it
+    with realms_lock() held."""
+    bound_domains = _bound_domains()
+    if domain not in bound_domains:
+        agent.bind_user_domains(bound_domains + [domain], check=True)
+
+def unbind_domain(domain):
+    """Remove a user domain from the bound domains of the module. Call
+    it with realms_lock() held."""
+    bound_domains = _bound_domains()
+    if domain in bound_domains:
+        agent.bind_user_domains([d for d in bound_domains if d != domain], check=True)
+
+def issuer_url(realm):
+    return f"https://{os.environ['IDP_HOSTNAME']}/realms/{realm}"
+
+def require_keycloak():
+    """Exit with an error if Keycloak is not running."""
+    if subprocess.run(["systemctl", "--user", "-q", "is-active", "keycloak.service"]).returncode != 0:
+        print(agent.SD_ERR + "keycloak.service is not active", file=sys.stderr)
+        sys.exit(1)
 
 def ldap_component_config(domain):
     """Return the LDAP federation settings of a user domain, as

@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+
+idprealm.require_keycloak()
+
+with idprealm.realms_lock():
+    kc = kcadmin.agent_client()
+    if domain not in kcadmin.managed_realms(kc):
+        idprealm.fail_validation("domain", domain, "realm_not_found")
+    # The clients belong to other modules: removing them must be explicit
+    if idprealm.module_clients(kc, domain) and not request.get("force", False):
+        idprealm.fail_validation("domain", domain, "realm_has_clients")
+    print(f"Removing realm {domain}", file=sys.stderr)
+    kc.delete(f"/{domain}")
+    idprealm.unbind_domain(domain)

@@ -177,6 +177,22 @@ like those submitted by the cluster agent or with `api-cli`.
 Registrations are serialized with a lock, because the idp replaces its
 user domain binding as a whole.
 
+Administrators manage realms and clients with these actions, which
+are not granted to the `clientadm` role:
+
+- `list-realms`: the realms, with their state and the clients of NS8
+  modules;
+- `add-realm`: create the realm of a user domain before any client
+  registers in it;
+- `alter-realm`: enable or disable a realm. A disabled realm refuses the
+  logins of all its clients;
+- `alter-realm-client`: enable or disable the client of a module.
+  `register-client` does not change this flag, so a module cannot enable
+  its client again by registering it;
+- `remove-realm`: remove a realm and unbind the idp from its user
+  domain. A realm with clients is removed only with `"force": true`, and
+  its modules must register them again.
+
 The client secret is returned in the task output, which the core keeps
 in Redis for a while, like the bind credentials of user domains.
 
