@@ -1,0 +1,14 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e
+exec 1>&2
+
+# Allow other modules to register their OIDC clients by requiring the
+# "clientadm" role, with org.nethserver.authorizations=idp@any:clientadm.
+# Instances created before the role existed get it on update.
+redis-exec SADD "${AGENT_ID}/roles/clientadm" register-client

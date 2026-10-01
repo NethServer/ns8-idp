@@ -6,11 +6,25 @@
 #
 
 import json
+import os
 import sys
 
 import agent
 
 request = json.load(sys.stdin)
+host = request["host"]
 
 # The Let's Encrypt flag is stored by Traefik in the route
-agent.set_env("IDP_HOSTNAME", request["host"])
+agent.set_env("IDP_HOSTNAME", host)
+
+# Publish the identity provider for service discovery. Applications find
+# the issuer of a user domain at https://{host}/realms/{domain}
+agent_id = os.environ["AGENT_ID"]
+srv_key = f"{agent_id}/srv/http/idp"
+rdb = agent.redis_connect(privileged=True)
+rdb.hset(srv_key, mapping={"host": host})
+rdb.publish(f"{agent_id}/event/service-idp-changed", json.dumps({
+    "key": srv_key,
+    "module_id": os.environ["MODULE_ID"],
+    "module_uuid": os.environ["MODULE_UUID"],
+}))

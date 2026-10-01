@@ -1,0 +1,36 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "register-client output",
+    "$id": "http://schema.nethserver.org/idp/register-client-output.json",
+    "description": "OIDC client credentials and issuer",
+    "examples": [
+        {
+            "client_id": "nextcloud1",
+            "client_secret": "2Gv4...",
+            "realm": "dp.example.org",
+            "issuer": "https://sso.example.org/realms/dp.example.org"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "client_id",
+        "client_secret",
+        "realm",
+        "issuer"
+    ],
+    "properties": {
+        "client_id": {
+            "type": "string"
+        },
+        "client_secret": {
+            "type": "string"
+        },
+        "realm": {
+            "type": "string"
+        },
+        "issuer": {
+            "description": "OIDC issuer URL of the realm",
+            "type": "string"
+        }
+    }
+}

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e
+
+# Reconcile the realms with the cluster configuration. If Keycloak is
+# not running, its next start does it.
+if ! systemctl --user -q is-active keycloak.service; then
+    exit 0
+fi
+
+exec keycloak-post-start

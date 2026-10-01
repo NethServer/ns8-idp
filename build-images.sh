@@ -44,7 +44,7 @@ buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 # Setup the entrypoint, ask to reserve one TCP port with the label and set a rootless container
 buildah config --entrypoint=/ \
-    --label="org.nethserver.authorizations=traefik@node:routeadm samba@any:domadm openldap@any:domadm" \
+    --label="org.nethserver.authorizations=traefik@node:routeadm samba@any:domadm openldap@any:domadm cluster:accountconsumer" \
     --label="org.nethserver.tcp-ports-demand=1" \
     --label="org.nethserver.rootfull=0" \
     --label="org.nethserver.images=${repobase}/idp-keycloak:${IMAGETAG:-latest} docker.io/library/postgres:18.6-trixie" \

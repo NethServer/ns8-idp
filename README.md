@@ -29,6 +29,39 @@ Read the current configuration:
 
     api-cli run module/idp1/get-configuration
 
+## Register an application
+
+An application module registers its OIDC client in the realm of its
+user domain with the `register-client` action. The module image must
+declare the `clientadm` role in its authorizations label:
+
+    org.nethserver.authorizations=idp@any:clientadm
+
+The client ID is the module ID. For example, the module agent of
+`nextcloud1`, bound to the `dp.example.org` user domain, calls:
+
+```python
+response = agent.tasks.run(agent_id="module/idp1", action="register-client", data={
+    "domain": "dp.example.org",
+    "redirect_uris": ["https://cloud.example.org/apps/user_oidc/code"],
+})
+agent.assert_exp(response["exit_code"] == 0)
+# {"client_id": "nextcloud1", "client_secret": "...", "realm": "dp.example.org",
+#  "issuer": "https://sso.example.org/realms/dp.example.org"}
+```
+
+The same call updates an existing client and returns its current secret;
+add `"rotate_secret": true` to generate a new one. A client without
+redirect URIs can only authenticate its own requests, for example token
+introspection. The `audience` attribute adds other client IDs to the
+token audience, for example the mail module whose Dovecot introspects the
+tokens. See the action input schema for all attributes.
+
+Applications discover the idp instances with
+`agent.list_service_providers(rdb, "idp")`: each instance publishes its
+`host` in `module/{MODULE_ID}/srv/http/idp`, and raises the
+`service-idp-changed` event when it changes.
+
 ## Uninstall
 
 To uninstall the instance:
@@ -115,6 +148,30 @@ obtained, Traefik keeps the previous route and the module settings are
 not changed. The Let's Encrypt flag is stored only in the Traefik route,
 and `get-configuration` reads it from there.
 
+### Realms and clients
+
+A realm is named after an NS8 user domain, and the idp can serve any
+user domain of the cluster. `register-client` creates the realm when it
+does not exist yet, and binds the idp to the user domain
+(`cluster:accountconsumer`). A realm has:
+
+- a read-only LDAP federation of the user domain, through ldapproxy at
+  `cluster-localnode`, with the core filters for hidden users and
+  groups, and a group mapper;
+- the `ldap_uuid` default client scope: the claim carries the LDAP
+  account key of the user (`entryUUID`, or `objectGUID` in uppercase for
+  Active Directory, as Nextcloud expects).
+
+The client owner is the calling module, read from `AGENT_TASK_USER`, and
+it must be bound to the user domain of the realm. An explicit
+`module_id` attribute is accepted only from tasks without a calling user,
+like those submitted by the cluster agent or with `api-cli`.
+Registrations are serialized with a lock, because the idp replaces its
+user domain binding as a whole.
+
+The client secret is returned in the task output, which the core keeps
+in Redis for a while, like the bind credentials of user domains.
+
 ### Keycloak administration
 
 Actions, event handlers and helper scripts configure Keycloak through
@@ -146,23 +203,35 @@ same job covers the first start and credential recovery:
 To recover lost credentials, remove `state/ns8-agent.json` and restart
 `keycloak.service`.
 
+### Reconciliation
+
+[imageroot/bin/keycloak-post-start](imageroot/bin/keycloak-post-start)
+applies the cluster configuration to every realm of the module:
+
+- the LDAP federation follows the user domain settings, like the bind
+  password and the ldapproxy port;
+- the client of a module is deleted when the module is no longer bound
+  to the user domain of the realm, for example after its removal;
+- the SMTP settings follow the node smarthost.
+
+It runs after every Keycloak start, because events can be lost, and on
+the `user-domain-changed`, `module-domain-changed`, `module-removed` and
+`smarthost-changed` events when Keycloak is running.
+
 ### SMTP settings
 
 Keycloak has no server-wide SMTP configuration: each realm has its own
-settings. The node smarthost settings are applied to every realm of the
-module by [imageroot/bin/keycloak-post-start](imageroot/bin/keycloak-post-start):
-
-- after every Keycloak start, because events can be lost;
-- when the `smarthost-changed` event is received and Keycloak is
-  running.
+settings, set by the reconciliation.
 
 The sender address is `IDP_SMTP_FROM`, or `no-reply@${IDP_HOSTNAME}` when
 unset. The TLS certificate verification setting has no realm equivalent.
 
 ### Updates
 
-`update-module.d/80restart` reloads the systemd units and restarts the
-running services, so an update takes effect immediately.
+`update-module.d/80restart` restarts the running services, so an update
+takes effect immediately: the core has already reloaded the unit files.
+`update-module.d/20grants` adds the `clientadm` role to instances created
+before it existed.
 
 ## Running tests locally
 

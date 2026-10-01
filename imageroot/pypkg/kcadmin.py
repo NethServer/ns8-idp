@@ -91,6 +91,11 @@ class Client:
         self._token_expiry = time.monotonic() + max(payload.get("expires_in", 60) - 15, 5)
         return self._token
 
+    def renew_token(self):
+        """Obtain a new token, for example to use roles granted after
+        the current token was issued."""
+        self._token = None
+
     def request(self, method, path, data=None, params=None):
         """Call the admin API. The path is relative to /admin/realms, e.g.
         "/master/clients". Return the decoded JSON response, or the

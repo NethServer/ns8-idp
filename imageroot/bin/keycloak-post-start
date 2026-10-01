@@ -6,15 +6,22 @@
 #
 
 #
-# Apply the settings that must follow the node configuration to every
+# Apply the settings that must follow the cluster configuration to every
 # realm managed by the module. It runs after every Keycloak start, and
-# when such settings change.
+# when such settings change, because events can be lost:
+#
+# - the LDAP federation follows the user domain settings;
+# - a module client exists only while the module is bound to the user
+#   domain of the realm;
+# - the SMTP settings follow the node smarthost.
 #
 
 import os
 import sys
 
 import agent
+import agent.ldapproxy
+import idprealm
 import kcadmin
 
 def smtp_server_rep(settings):
@@ -40,7 +47,20 @@ def smtp_server_rep(settings):
 rdb = agent.redis_connect(use_replica=True)
 smtp_server = smtp_server_rep(agent.get_smarthost_settings(rdb))
 
+user_domains = agent.ldapproxy.Ldapproxy().get_domains_list()
+
 kc = kcadmin.agent_client()
 for realm in kcadmin.managed_realms(kc):
+    if realm in user_domains:
+        idprealm.ensure_federation(kc, realm)
+    else:
+        print(agent.SD_WARNING + f"User domain {realm} not found: the LDAP federation of its realm is not updated", file=sys.stderr)
+
+    for client in idprealm.module_clients(kc, realm):
+        module_id = client["attributes"][idprealm.MODULE_ATTRIBUTE]
+        if realm not in (rdb.hget("cluster/module_domains", module_id) or "").split():
+            print(f"Deleting client {client['clientId']} of realm {realm}: module {module_id} is not bound to the user domain", file=sys.stderr)
+            kc.delete(f"/{realm}/clients/{client['id']}")
+
     print(f"Applying SMTP settings to realm {realm}", file=sys.stderr)
     kc.put(f"/{realm}", {"smtpServer": smtp_server})
