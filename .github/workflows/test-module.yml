@@ -22,6 +22,6 @@ jobs:
     uses: NethServer/ns8-github-actions/.github/workflows/test-module-qemu.yml@v1
     with:
       debug_shell: ${{ github.event.inputs.debug_shell == 'true' }}
-      # TODO: remove when NethServer/dev#8188 is released: Keycloak reaches
-      # ldapproxy from the pod only if it listens on all IPv4 addresses
-      install_args: ghcr.io/nethserver/ldapproxy:feat-8188
+      # TODO: remove when a stable ldapproxy listens on all IPv4 addresses
+      # (NethServer/dev#8188): Keycloak reaches ldapproxy from the pod
+      install_args: ghcr.io/nethserver/ldapproxy:1.4.0-dev.1
