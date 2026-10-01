@@ -261,6 +261,11 @@ before it existed.
 
 This module uses the NS8 standard testing infrastructure. For instructions on how to run the test suite locally, refer to the [Running tests locally](https://github.com/NethServer/ns8-github-actions/blob/v1/README.md#running-tests-locally) section of the ns8-github-actions README.
 
+The `Realms` suite creates an OpenLDAP user domain, and simulates an
+application module bound to it, because the core binds only the module
+that calls `bind-user-domains`. Its Keycloak checks are in
+[tests/kccheck.py](tests/kccheck.py), run in the idp module environment.
+
 The suite runs in the two scenarios of the NS8 test workflow, selected
 by the `SCENARIO` variable: `install` tests a new installation of the
 module image, `update` installs the latest stable release and updates it

@@ -1,6 +1,6 @@
 *** Settings ***
 Library    SSHLibrary
-Resource    api.resource
+Resource    idp.resource
 Suite Setup    Check the scenario
 
 *** Variables ***
@@ -8,8 +8,6 @@ ${IMAGE_URL}    ghcr.io/nethserver/idp:latest
 ${SCENARIO}    install
 ${ADMIN_USER}    admin
 ${ADMIN_PASSWORD}    Nethesis,1234
-${IDP_HOST}    idp.fqdn.test
-${module_id}    ${EMPTY}
 
 *** Keywords ***
 Check the scenario
@@ -18,10 +16,6 @@ Check the scenario
         ${count} =    Execute Command    api-cli run cluster/list-modules | python3 -c 'import sys, json; print(sum(1 for m in json.load(sys.stdin) if m["id"] == "idp" for v in m["versions"] if not v["testing"]))'
         Skip If    ${count} == 0    The update scenario needs a stable idp release
     END
-
-Retry test
-    [Arguments]    ${keyword}
-    Wait Until Keyword Succeeds    60 seconds    2 seconds    ${keyword}
 
 Services are active
     ${rc} =    Execute Command    runagent -m ${module_id} systemctl --user is-active idp.service postgres.service keycloak.service
@@ -61,7 +55,7 @@ Add module for ${SCENARIO} scenario
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0
     &{output} =    Evaluate    ${output}
-    Set Suite Variable    ${module_id}    ${output.module_id}
+    Set Global Variable    ${module_id}    ${output.module_id}
 
 Configure module
     Run task    module/${module_id}/configure-module    {"host": "${IDP_HOST}", "lets_encrypt": false}    decode_json=${FALSE}
@@ -106,8 +100,3 @@ Take screenshots
     Sleep    5s
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/2._Settings.png
     Close Browser
-
-Check if idp is removed correctly
-    ${rc} =    Execute Command    remove-module --no-preserve ${module_id}
-    ...    return_rc=True    return_stdout=False
-    Should Be Equal As Integers    ${rc}    0

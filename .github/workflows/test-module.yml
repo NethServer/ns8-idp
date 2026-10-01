@@ -24,3 +24,6 @@ jobs:
     with:
       ci_actions_ref: feat-qemu-alternate-legs
       debug_shell: ${{ github.event.inputs.debug_shell == 'true' }}
+      # TODO: remove when NethServer/dev#8188 is released: Keycloak reaches
+      # ldapproxy from the pod only if it listens on all IPv4 addresses
+      install_args: ghcr.io/nethserver/ldapproxy:feat-8188
