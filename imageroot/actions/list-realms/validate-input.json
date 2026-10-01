@@ -4,7 +4,11 @@
     "$id": "http://schema.nethserver.org/idp/list-realms-input.json",
     "description": "List the realms of the idp and the clients of NS8 modules",
     "examples": [
+        null,
         {}
     ],
-    "type": "object"
+    "type": [
+        "object",
+        "null"
+    ]
 }
