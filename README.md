@@ -57,10 +57,18 @@ introspection. The `audience` attribute adds other client IDs to the
 token audience, for example the mail module whose Dovecot introspects the
 tokens. See the action input schema for all attributes.
 
-Applications discover the idp instances with
-`agent.list_service_providers(rdb, "idp")`: each instance publishes its
-`host` in `module/{MODULE_ID}/srv/http/idp`, and raises the
-`service-idp-changed` event when it changes.
+Applications discover the OIDC providers of the cluster with
+`agent.list_service_providers(rdb, "oidc")`. Each idp instance publishes
+`module/{MODULE_ID}/srv/http/oidc`, and raises the
+`service-oidc-changed` event when it changes. The record fields are:
+
+- `host`: the host name of the provider;
+- `issuer_url_prefix`: the issuer of a user domain is this prefix
+  followed by the domain name, for example
+  `https://sso.example.org/realms/dp.example.org`.
+
+Any module publishing the `oidc` service is expected to implement the
+`register-client` action and the `clientadm` role as described here.
 
 ## Uninstall
 
