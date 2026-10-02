@@ -67,6 +67,20 @@ Applications discover the OIDC providers of the cluster with
   followed by the domain name, for example
   `https://sso.example.org/realms/dp.example.org`.
 
+The event payload carries the record fields, so listeners can tell
+whether the change concerns them, besides the record key and the
+provider module:
+
+```json
+{
+    "host": "sso.example.org",
+    "issuer_url_prefix": "https://sso.example.org/realms/",
+    "key": "module/idp1/srv/http/oidc",
+    "module_id": "idp1",
+    "module_uuid": "8d257122-0a7f-49c7-a620-08961a68cfa0"
+}
+```
+
 Any module publishing the `oidc` service is expected to implement the
 `register-client` action and the `clientadm` role as described here.
 

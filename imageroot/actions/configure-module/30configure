@@ -22,11 +22,15 @@ agent.set_env("IDP_HOSTNAME", host)
 agent_id = os.environ["AGENT_ID"]
 srv_key = f"{agent_id}/srv/http/oidc"
 rdb = agent.redis_connect(privileged=True)
-rdb.hset(srv_key, mapping={
+record = {
     "host": host,
     "issuer_url_prefix": f"https://{host}/realms/",
-})
+}
+rdb.hset(srv_key, mapping=record)
+# The record fields in the payload let listeners tell whether the
+# change concerns them
 rdb.publish(f"{agent_id}/event/service-oidc-changed", json.dumps({
+    **record,
     "key": srv_key,
     "module_id": os.environ["MODULE_ID"],
     "module_uuid": os.environ["MODULE_UUID"],
