@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+
+import idpfed
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+alias = request["alias"]
+
+idprealm.require_keycloak()
+
+with idprealm.realms_lock():
+    kc = kcadmin.agent_client()
+    if domain not in kcadmin.managed_realms(kc):
+        idprealm.fail_validation("domain", domain, "realm_not_found")
+    if not any(idp["alias"] == alias for idp in idpfed.federated_idps(kc, domain)):
+        idprealm.fail_validation("alias", alias, "idp_not_found")
+
+    print(f"Removing federated IdP {alias} from realm {domain}", file=sys.stderr)
+    kc.delete(f"/{domain}/identity-provider/instances/{alias}")
+    # Accounts of the IdP that get a password from an administrator can
+    # log in again with it
+    idpfed.remove_password_denial(kc, domain, alias)
+    idpfed.save_idp_settings(domain, alias, None)
+
+    # Without federated IdPs the realm loses the write access to its user
+    # domain. Federated accounts stay in the user domain.
+    if not idpfed.federated_idps(kc, domain):
+        idpfed.reset_flows(kc, domain)
+        idpfed.set_user_domain_access(kc, domain, "read-only")
+        idprealm.ensure_federation(kc, domain)
+        idpfed.remove_service_account(domain)

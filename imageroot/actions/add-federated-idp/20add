@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+
+import agent.ldapproxy
+import idpfed
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+idp_type = request["type"]
+alias = request.get("alias", idp_type)
+display_name = request.get("display_name", "Microsoft Entra ID")
+entra = request["entra"]
+
+ldom = agent.ldapproxy.Ldapproxy().get_domain(domain)
+if not ldom:
+    idprealm.fail_validation("domain", domain, "domain_not_found")
+if ldom["schema"] != "ad" or ldom["location"] != "internal":
+    # Keycloak cannot create OpenLDAP accounts: they need numeric IDs
+    idprealm.fail_validation("domain", domain, "user_domain_not_supported")
+
+if request.get("check_credentials", True):
+    error = idpfed.check_entra_credentials(entra["tenant_id"], entra["client_id"], entra["client_secret"])
+    if error:
+        print(agent.SD_ERR + f"Entra ID credentials check failed: {error}", file=sys.stderr)
+        idprealm.fail_validation("entra", error, "invalid_credentials")
+
+idprealm.require_keycloak()
+
+with idprealm.realms_lock():
+    kc = kcadmin.agent_client()
+    if domain not in kcadmin.managed_realms(kc):
+        idprealm.bind_domain(domain)
+        idprealm.ensure_realm(kc, domain)
+    if any(idp["alias"] == alias for idp in idpfed.federated_idps(kc, domain)):
+        idprealm.fail_validation("alias", alias, "idp_already_exists")
+
+    # The first federated IdP grants the realm write access to its user
+    # domain, to create the accounts of federated users
+    if idpfed.user_domain_access(kc, domain) != "writable":
+        idpfed.ensure_service_account(domain)
+        idpfed.set_user_domain_access(kc, domain, "writable")
+        idprealm.ensure_federation(kc, domain)
+    idpfed.ensure_user_profile(kc, domain)
+    idpfed.ensure_flows(kc, domain)
+    idpfed.ensure_password_denial(kc, domain, alias, display_name)
+
+    idpfed.save_idp_settings(domain, alias, {"type": idp_type, "entra": entra})
+    print(f"Creating federated IdP {alias} in realm {domain}", file=sys.stderr)
+    kc.post(f"/{domain}/identity-provider/instances", idpfed.entra_idp_rep(alias, display_name, entra))
+    for mapper in idpfed.entra_idp_mappers(alias):
+        kc.post(f"/{domain}/identity-provider/instances/{alias}/mappers", mapper)
+
+json.dump({
+    "alias": alias,
+    "redirect_uri": idpfed.redirect_uri(domain, alias),
+}, fp=sys.stdout)

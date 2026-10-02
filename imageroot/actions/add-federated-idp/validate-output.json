@@ -1,0 +1,26 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-federated-idp output",
+    "$id": "http://schema.nethserver.org/idp/add-federated-idp-output.json",
+    "description": "The new federated IdP",
+    "examples": [
+        {
+            "alias": "entra",
+            "redirect_uri": "https://sso.example.org/realms/ad.example.org/broker/entra/endpoint"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "alias",
+        "redirect_uri"
+    ],
+    "properties": {
+        "alias": {
+            "type": "string"
+        },
+        "redirect_uri": {
+            "description": "Redirect URI to set in the application registration of the IdP",
+            "type": "string"
+        }
+    }
+}

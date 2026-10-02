@@ -16,6 +16,16 @@
                             "client_id": "nextcloud1",
                             "enabled": true
                         }
+                    ],
+                    "user_domain_access": "writable",
+                    "federated_idps": [
+                        {
+                            "alias": "entra",
+                            "type": "entra",
+                            "display_name": "Microsoft Entra ID",
+                            "enabled": true,
+                            "redirect_uri": "https://sso.example.org/realms/dp.example.org/broker/entra/endpoint"
+                        }
                     ]
                 }
             ]
@@ -35,7 +45,9 @@
                     "enabled",
                     "issuer",
                     "user_domain_found",
-                    "clients"
+                    "clients",
+                    "user_domain_access",
+                    "federated_idps"
                 ],
                 "properties": {
                     "name": {
@@ -68,6 +80,44 @@
                                 },
                                 "enabled": {
                                     "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "user_domain_access": {
+                        "description": "writable if the realm creates the accounts of federated users",
+                        "type": "string",
+                        "enum": [
+                            "read-only",
+                            "writable"
+                        ]
+                    },
+                    "federated_idps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "alias",
+                                "type",
+                                "display_name",
+                                "enabled",
+                                "redirect_uri"
+                            ],
+                            "properties": {
+                                "alias": {
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "redirect_uri": {
+                                    "type": "string"
                                 }
                             }
                         }

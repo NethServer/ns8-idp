@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+
+import agent
+import idpfed
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+alias = request["alias"]
+
+idprealm.require_keycloak()
+kc = kcadmin.agent_client()
+if domain not in kcadmin.managed_realms(kc):
+    idprealm.fail_validation("domain", domain, "realm_not_found")
+idp = next((i for i in idpfed.federated_idps(kc, domain) if i["alias"] == alias), None)
+settings = idpfed.load_idp_settings(domain, alias)
+if idp is None or settings is None:
+    idprealm.fail_validation("alias", alias, "idp_not_found")
+
+entra = dict(settings["entra"], **request.get("entra", {}))
+if "client_secret" in request.get("entra", {}) and request.get("check_credentials", True):
+    error = idpfed.check_entra_credentials(entra["tenant_id"], entra["client_id"], entra["client_secret"])
+    if error:
+        print(agent.SD_ERR + f"Entra ID credentials check failed: {error}", file=sys.stderr)
+        idprealm.fail_validation("entra", error, "invalid_credentials")
+
+# Rebuild the representation from the stored settings: the secret
+# returned by Keycloak is masked
+rep = idpfed.entra_idp_rep(alias, request.get("display_name", idp["displayName"]), entra)
+rep["enabled"] = request.get("enabled", idp["enabled"])
+rep["internalId"] = idp["internalId"]
+kc.put(f"/{domain}/identity-provider/instances/{alias}", rep)
+idpfed.save_idp_settings(domain, alias, dict(settings, entra=entra))

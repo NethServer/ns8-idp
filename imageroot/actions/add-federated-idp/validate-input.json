@@ -1,0 +1,76 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-federated-idp input",
+    "$id": "http://schema.nethserver.org/idp/add-federated-idp-input.json",
+    "description": "Add a federated IdP to the realm of a user domain. The realm gets write access to the user domain, to create the accounts of federated users at their first login. Only internal Active Directory user domains are supported",
+    "examples": [
+        {
+            "domain": "ad.example.org",
+            "type": "entra",
+            "display_name": "Microsoft Entra ID",
+            "entra": {
+                "tenant_id": "1b2c3d4e-0000-0000-0000-000000000000",
+                "client_id": "9f8e7d6c-0000-0000-0000-000000000000",
+                "client_secret": "..."
+            }
+        }
+    ],
+    "type": "object",
+    "required": [
+        "domain",
+        "type",
+        "entra"
+    ],
+    "properties": {
+        "domain": {
+            "description": "User domain, which is also the realm name",
+            "type": "string",
+            "minLength": 1
+        },
+        "type": {
+            "description": "Type of the federated IdP",
+            "type": "string",
+            "enum": [
+                "entra"
+            ]
+        },
+        "alias": {
+            "description": "Alias of the federated IdP in the realm. It is also the value of the federated account marker. Default: the type",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "display_name": {
+            "description": "Label of the login button. Default: Microsoft Entra ID",
+            "type": "string",
+            "minLength": 1
+        },
+        "entra": {
+            "description": "Microsoft Entra ID application registration",
+            "type": "object",
+            "required": [
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ],
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "client_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "client_secret": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "check_credentials": {
+            "description": "Check the IdP credentials with a token request before applying them",
+            "type": "boolean",
+            "default": true
+        }
+    }
+}

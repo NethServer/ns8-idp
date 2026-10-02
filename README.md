@@ -84,6 +84,35 @@ provider module:
 Any module publishing the `oidc` service is expected to implement the
 `register-client` action and the `clientadm` role as described here.
 
+## Federated identity providers
+
+The realm of an internal Active Directory user domain can accept the
+logins of a federated identity provider (IdP), like Microsoft Entra ID.
+At the first login of a federated user, Keycloak creates the account in
+the user domain. Native accounts keep logging in with their password,
+next to the IdP login button.
+
+In the Entra admin center, register an application with the redirect
+URI of the realm, a client secret, and the optional ID token claims
+`email`, `given_name` and `family_name`. Then add the IdP:
+
+    api-cli run module/idp1/add-federated-idp --data '{"domain": "ad.example.org", "type": "entra", "entra": {"tenant_id": "...", "client_id": "...", "client_secret": "..."}}'
+
+The output contains the redirect URI of the realm, also listed by
+`list-realms`:
+
+    {"alias": "entra", "redirect_uri": "https://sso.example.org/realms/ad.example.org/broker/entra/endpoint"}
+
+The action checks the credentials with a token request to Entra ID,
+unless `"check_credentials": false`. `alter-federated-idp` changes the
+given attributes only, for example `{"enabled": false}` or a new
+`client_secret`. `remove-federated-idp` removes the IdP: federated
+accounts stay in the user domain, and log in with a password only if an
+administrator sets one.
+
+OpenLDAP user domains are not supported yet: their accounts need numeric
+IDs that Keycloak cannot allocate.
+
 ## Uninstall
 
 To uninstall the instance:
@@ -209,6 +238,36 @@ are not granted to the `clientadm` role:
 
 The client secret is returned in the task output, which the core keeps
 in Redis for a while, like the bind credentials of user domains.
+
+### Federated IdPs
+
+A realm without federated IdPs has read-only access to its user domain.
+The first federated IdP grants write access, and the last one removed
+takes it back:
+
+- the idp creates its service account in the user domain with the
+  `samba@any:domadm` authorization, as a member of `Domain Admins`, and
+  the LDAP federation binds as it and writes the accounts of new
+  federated users. The service account is excluded from the federation,
+  but NS8 lists it among the domain users;
+- the LDAP mappers write accounts like the NS8 AD accounts: the user
+  name in `cn`, the full name in `displayName`, no `givenName` and `sn`,
+  and `pwdLastSet` set, so Samba does not require a password change.
+
+Federated accounts carry a marker in LDAP: the IdP alias in
+`employeeType` and the immutable user ID at the IdP (the Entra ID `oid`)
+in `employeeNumber`. The marker
+
+- links the federated identity to an existing account, with the NS8
+  link authenticator in the first broker login flow, also for accounts
+  provisioned in advance or after the loss of the Keycloak database;
+- denies password logins to the account, in the browser and direct
+  grant flows: otherwise it could log in without the IdP, bypassing
+  its multi-factor authentication and conditional access. The denial of
+  an IdP is removed with the IdP.
+
+Keycloak returns IdP secrets masked: the idp keeps the IdP settings and
+the service account password in `state/federation.json`, mode 0600.
 
 ### Keycloak administration
 

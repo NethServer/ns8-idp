@@ -6,8 +6,9 @@
 """Keycloak realms of NS8 user domains, and OIDC clients of NS8 modules.
 
 A realm is named after its user domain. Its users and groups come from
-a read-only LDAP federation through ldapproxy. Every OIDC client is
-owned by an NS8 module: the client ID is the module ID.
+an LDAP federation through ldapproxy, read-only unless the realm has a
+federated IdP (see idpfed). Every OIDC client is owned by an NS8 module:
+the client ID is the module ID.
 """
 
 import contextlib
@@ -74,15 +75,18 @@ def require_keycloak():
         print(agent.SD_ERR + "keycloak.service is not active", file=sys.stderr)
         sys.exit(1)
 
-def ldap_component_config(domain):
+def ldap_component_config(domain, service_account=None):
     """Return the LDAP federation settings of a user domain, as
-    component config of Keycloak. Return None if the domain does not
-    exist."""
+    component config of Keycloak. With a service account the federation
+    is writable. Return None if the domain does not exist."""
     lp = agent.ldapproxy.Ldapproxy()
     ldom = lp.get_domain(domain)
     if not ldom:
         return None
     users_clause = lp.get_ldap_users_search_filter_clause(domain)
+    if service_account and ldom["schema"] == "ad":
+        # The service account is not a user of the realm
+        users_clause += f"(!(sAMAccountName={service_account['user']}))"
     config = {
         "enabled": ["true"],
         "editMode": ["READ_ONLY"],
@@ -96,6 +100,15 @@ def ldap_component_config(domain):
         "useTruststoreSpi": ["never"],
         "connectionPooling": ["true"],
     }
+    if service_account:
+        config.update({
+            "editMode": ["WRITABLE"],
+            # Accounts created by Keycloak, at the first login of a
+            # federated user, are written to LDAP
+            "syncRegistrations": ["true"],
+            "bindDn": [service_account["bind_dn"]],
+            "bindCredential": [service_account["password"]],
+        })
     if ldom["schema"] == "ad":
         config.update({
             "vendor": ["ad"],
@@ -203,12 +216,22 @@ def ensure_federation(kc, domain):
     """Create or update the LDAP federation of the realm, from the
     current user domain settings. The bind password and the ldapproxy
     port may change over time."""
-    config = ldap_component_config(domain)
+    import idpfed
+    service_account = None
+    writable = idpfed.user_domain_access(kc, domain) == "writable"
+    if writable:
+        service_account = idpfed.load_service_account(domain)
+        if service_account is None:
+            raise ValueError(f"service account of user domain {domain} not found")
+    config = ldap_component_config(domain, service_account)
     if config is None:
         raise ValueError(f"user domain {domain} not found")
     realm_id = kc.get(f"/{domain}")["id"]
     storage_type = "org.keycloak.storage.UserStorageProvider"
     component = _find_component(kc, domain, realm_id, storage_type, LDAP_COMPONENT_NAME)
+    if component and not writable:
+        # Mappers of a read-only federation cannot write
+        idpfed.ensure_read_only_mappers(kc, domain, component["id"])
     if component is None:
         print(f"Creating the LDAP federation of realm {domain}", file=sys.stderr)
         kc.post(f"/{domain}/components", {
@@ -237,6 +260,9 @@ def ensure_federation(kc, domain):
     else:
         mapper["config"].update(mapper_config)
         kc.put(f"/{domain}/components/{mapper['id']}", mapper)
+
+    if writable:
+        idpfed.ensure_writable_mappers(kc, domain, component["id"])
 
 def ensure_ldap_uuid_scope(kc, domain):
     """Add the ldap_uuid claim to every client of the realm, with a

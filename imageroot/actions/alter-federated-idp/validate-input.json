@@ -1,0 +1,67 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "alter-federated-idp input",
+    "$id": "http://schema.nethserver.org/idp/alter-federated-idp-input.json",
+    "description": "Change the settings of a federated IdP. Only the given attributes are changed",
+    "examples": [
+        {
+            "domain": "ad.example.org",
+            "alias": "entra",
+            "entra": {
+                "client_secret": "..."
+            }
+        },
+        {
+            "domain": "ad.example.org",
+            "alias": "entra",
+            "enabled": false
+        }
+    ],
+    "type": "object",
+    "required": [
+        "domain",
+        "alias"
+    ],
+    "properties": {
+        "domain": {
+            "description": "User domain, which is also the realm name",
+            "type": "string",
+            "minLength": 1
+        },
+        "alias": {
+            "description": "Alias of the federated IdP in the realm. It is also the value of the federated account marker",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "enabled": {
+            "description": "A disabled IdP cannot log users in",
+            "type": "boolean"
+        },
+        "display_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "entra": {
+            "type": "object",
+            "properties": {
+                "tenant_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "client_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "client_secret": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "check_credentials": {
+            "description": "Check a new client secret with a token request before applying it",
+            "type": "boolean",
+            "default": true
+        }
+    }
+}

@@ -9,6 +9,7 @@ import json
 import sys
 
 import agent.ldapproxy
+import idpfed
 import idprealm
 import kcadmin
 
@@ -22,12 +23,21 @@ for name in kcadmin.managed_realms(kc):
         "client_id": client["clientId"],
         "enabled": client["enabled"],
     } for client in idprealm.module_clients(kc, name)]
+    federated_idps = [{
+        "alias": idp["alias"],
+        "type": (idpfed.load_idp_settings(name, idp["alias"]) or {}).get("type", "oidc"),
+        "display_name": idp.get("displayName", ""),
+        "enabled": idp["enabled"],
+        "redirect_uri": idpfed.redirect_uri(name, idp["alias"]),
+    } for idp in idpfed.federated_idps(kc, name)]
     realms.append({
         "name": name,
         "enabled": kc.get(f"/{name}")["enabled"],
         "issuer": idprealm.issuer_url(name),
         "user_domain_found": name in user_domains,
+        "user_domain_access": idpfed.user_domain_access(kc, name),
         "clients": sorted(clients, key=lambda c: c["client_id"]),
+        "federated_idps": sorted(federated_idps, key=lambda i: i["alias"]),
     })
 
 json.dump({"realms": sorted(realms, key=lambda r: r["name"])}, fp=sys.stdout)
