@@ -14,6 +14,7 @@ the client ID is the module ID.
 import contextlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -292,10 +293,12 @@ def default_post_logout_redirect_uris(redirect_uris):
     return origins
 
 def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_uris=(),
-        web_origins=(), audience=(), rotate_secret=False):
+        web_origins=(), audience=(), rotate_secret=False, access_token_claims=None):
     """Create or update the OIDC client of a module, and return its
     secret. The secret is generated on creation, and when rotate_secret
     is set."""
+    if access_token_claims is not None:
+        validate_access_token_claims(access_token_claims)
     rep = {
         "clientId": module_id,
         "name": module_id,
@@ -318,11 +321,42 @@ def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_u
     }
     current = kc.find_client(realm, module_id)
     if current is None:
+        claims = access_token_claims or {}
+        rep["protocolMappers"].extend(access_token_claim_mapper(k, v) for k, v in sorted(claims.items()))
+        rep["attributes"][CLAIM_NAMES_ATTRIBUTE] = json.dumps(sorted(CLAIM_MAPPER_PREFIX + k for k in claims))
         print(f"Creating client {module_id} in realm {realm}", file=sys.stderr)
         rep["secret"] = secrets.token_urlsafe(32)
         kc.post(f"/{realm}/clients", rep)
         return rep["secret"]
 
+    if current.get("attributes", {}).get(MODULE_ATTRIBUTE) != module_id:
+        fail_validation("module_id", module_id, "client_not_owned_by_module")
+    # Preflight mapper ownership before mutating the client. Omitting the field
+    # preserves existing feature claims; an explicit empty object removes them.
+    models = f"/{realm}/clients/{current['id']}/protocol-mappers/models"
+    existing_mappers = kc.get(models)
+    try:
+        owned_names = json.loads(current.get("attributes", {}).get(CLAIM_NAMES_ATTRIBUTE, "[]"))
+        if (not isinstance(owned_names, list) or len(owned_names) != len(set(owned_names))
+                or not all(isinstance(n, str) and n.startswith(CLAIM_MAPPER_PREFIX) for n in owned_names)):
+            raise ValueError()
+    except (ValueError, TypeError):
+        fail_validation("access_token_claims", "", "invalid_claim_mapper_ownership")
+    if access_token_claims is not None:
+        desired_names = {CLAIM_MAPPER_PREFIX + k for k in access_token_claims}
+        for mapper in existing_mappers:
+            if mapper["name"] in desired_names and mapper["name"] not in owned_names:
+                fail_validation("access_token_claims", "", "claim_mapper_name_conflict")
+        for mapper in existing_mappers:
+            if mapper["name"] in owned_names and not is_claim_mapper(mapper):
+                fail_validation("access_token_claims", "", "claim_mapper_ownership_conflict")
+        # Retain old and new ownership until all mapper writes succeed. A retry
+        # after a partial failure can still find and remove stale owned mappers.
+        rep["attributes"][CLAIM_NAMES_ATTRIBUTE] = json.dumps(sorted(set(owned_names) | desired_names))
+    desired_audiences = {m["name"] for m in rep["protocolMappers"]}
+    for mapper in existing_mappers:
+        if mapper["name"] in desired_audiences and not is_audience_mapper(mapper):
+            fail_validation("audience", "", "audience_mapper_name_conflict")
     print(f"Updating client {module_id} in realm {realm}", file=sys.stderr)
     # Protocol mappers are not updated by a client update: replace the
     # audience mappers separately
@@ -332,12 +366,19 @@ def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_u
     current.pop("protocolMappers", None)
     current.pop("secret", None)
     kc.put(f"/{realm}/clients/{current['id']}", current)
-    models = f"/{realm}/clients/{current['id']}/protocol-mappers/models"
-    for mapper in kc.get(models):
-        if mapper["protocolMapper"] == "oidc-audience-mapper":
-            kc.delete(f"{models}/{mapper['id']}")
-    for mapper in mappers:
-        kc.post(models, mapper)
+    # The historical audience mappers are identified by their exact generated
+    # name and representation. Never delete administrator-added audience mappers.
+    owned_audiences = [m for m in existing_mappers if is_audience_mapper(m)]
+    reconcile_mappers(kc, models, owned_audiences, mappers)
+    if access_token_claims is not None:
+        owned_claims = [m for m in existing_mappers if m["name"] in owned_names]
+        desired_claims = [access_token_claim_mapper(k, v) for k, v in sorted(access_token_claims.items())]
+        reconcile_mappers(kc, models, owned_claims, desired_claims)
+        # Commit the reduced ownership manifest only after reconciliation.
+        final_names = json.dumps(sorted(desired_names))
+        if current["attributes"][CLAIM_NAMES_ATTRIBUTE] != final_names:
+            current["attributes"][CLAIM_NAMES_ATTRIBUTE] = final_names
+            kc.put(f"/{realm}/clients/{current['id']}", current)
     secret_path = f"/{realm}/clients/{current['id']}/client-secret"
     if rotate_secret:
         print(f"Rotating the secret of client {module_id}", file=sys.stderr)
@@ -355,9 +396,74 @@ def audience_mapper(client_id):
             "included.client.audience": client_id,
             "access.token.claim": "true",
             "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true",
         },
     }
+
+# Fixed strings only, in a custom top-level namespace. No scripts, arbitrary
+# mapper JSON, nested claims or protocol/security identity replacements.
+CLAIM_MAPPER_PREFIX = "ns8-access-claim-"
+CLAIM_NAMES_ATTRIBUTE = "ns8.access_token_claim_mappers"
+RESERVED_CLAIMS = frozenset({
+    "iss", "sub", "aud", "exp", "nbf", "iat", "jti", "typ", "type", "token_type",
+    "azp", "acr", "amr", "auth_time", "nonce", "sid", "session_state", "scope",
+    "cnf", "act", "may_act", "client_id", "realm_access", "resource_access",
+    "allowed-origins", "authorization", "permissions", "roles", "groups",
+    "preferred_username", "email", "email_verified", "given_name", "family_name",
+    "name", "ldap_uuid", "at_hash", "c_hash", "s_hash",
+})
+
+def validate_access_token_claims(claims):
+    """Validate even direct callers, independently of the action schema."""
+    if not isinstance(claims, dict) or len(claims) > 8:
+        fail_validation("access_token_claims", "", "invalid_access_token_claims")
+    for name, value in claims.items():
+        if (not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9]{0,15}_[a-z0-9_]{1,47}", name)
+                or name in RESERVED_CLAIMS
+                or not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value)):
+            fail_validation("access_token_claims", "", "invalid_access_token_claims")
+
+def access_token_claim_mapper(name, value):
+    return {
+        "name": CLAIM_MAPPER_PREFIX + name,
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-hardcoded-claim-mapper",
+        "config": {
+            "claim.name": name, "claim.value": value, "jsonType.label": "String",
+            "access.token.claim": "true", "id.token.claim": "false",
+            "userinfo.token.claim": "false", "introspection.token.claim": "true",
+        },
+    }
+
+def is_claim_mapper(mapper):
+    name = mapper.get("config", {}).get("claim.name", "")
+    return (mapper.get("protocol") == "openid-connect"
+        and mapper.get("protocolMapper") == "oidc-hardcoded-claim-mapper"
+        and mapper.get("name") == CLAIM_MAPPER_PREFIX + name)
+
+def is_audience_mapper(mapper):
+    client_id = mapper.get("config", {}).get("included.client.audience")
+    if not client_id:
+        return False
+    desired = audience_mapper(client_id)
+    current = dict(mapper)
+    current["config"] = {"userinfo.token.claim": "false", **mapper.get("config", {})}
+    return all(current.get(k) == v for k, v in desired.items())
+
+def reconcile_mappers(kc, models, owned, desired):
+    """Upsert only owned mappers. An identical retry makes no mapper writes."""
+    desired_by_name = {m["name"]: m for m in desired}
+    owned_by_name = {m["name"]: m for m in owned}
+    for name, mapper in owned_by_name.items():
+        if name not in desired_by_name:
+            kc.delete(f"{models}/{mapper['id']}")
+    for name, mapper in desired_by_name.items():
+        current = owned_by_name.get(name)
+        if current is None:
+            kc.post(models, mapper)
+        elif any(current.get(k) != v for k, v in mapper.items()):
+            kc.put(f"{models}/{current['id']}", {**mapper, "id": current["id"]})
 
 def module_clients(kc, realm):
     """Return the clients of the realm owned by NS8 modules."""

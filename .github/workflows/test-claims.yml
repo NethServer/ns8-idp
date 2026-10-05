@@ -1,0 +1,52 @@
+name: Access-token claim checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install jsonschema==4.23.0
+      - run: python3 -m unittest discover -s tests -p test_claims.py -v
+      - name: Start isolated Keycloak
+        run: |
+          python3 - <<'PY'
+          import secrets
+          from pathlib import Path
+          password = secrets.token_urlsafe(32)
+          print('::add-mask::' + password)
+          path = Path('/tmp/claims-server.env')
+          path.write_text('KC_BOOTSTRAP_ADMIN_USERNAME=qualification-admin\nKC_BOOTSTRAP_ADMIN_PASSWORD=' + password + '\nJAVA_OPTS_APPEND=-Xms64m -Xmx256m\n')
+          path.chmod(0o600)
+          PY
+          docker run -d --name ns8-idp-claims-check --memory=512m --env-file /tmp/claims-server.env -p 127.0.0.1:18080:8080 quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start-dev
+      - name: Verify actual tokens and registration updates
+        env:
+          TEST_KEYCLOAK_URL: http://127.0.0.1:18080
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, time, urllib.request
+          from pathlib import Path
+          values = dict(line.split('=', 1) for line in Path('/tmp/claims-server.env').read_text().splitlines())
+          os.environ['TEST_ADMIN_USER'] = values['KC_BOOTSTRAP_ADMIN_USERNAME']
+          os.environ['TEST_ADMIN_PASSWORD'] = values['KC_BOOTSTRAP_ADMIN_PASSWORD']
+          deadline = time.monotonic() + 180
+          while time.monotonic() < deadline:
+              try:
+                  with urllib.request.urlopen(os.environ['TEST_KEYCLOAK_URL'] + '/realms/master/.well-known/openid-configuration', timeout=3):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError('Keycloak readiness timed out')
+          subprocess.run(['python3', 'tests/live_claims.py'], check=True)
+          PY
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f ns8-idp-claims-check || true
+          rm -f /tmp/claims-server.env
