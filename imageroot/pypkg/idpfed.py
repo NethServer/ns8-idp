@@ -62,8 +62,15 @@ def user_domain_access(kc, realm):
     attributes = kc.get(f"/{realm}").get("attributes") or {}
     return attributes.get(ACCESS_ATTRIBUTE, "read-only")
 
+def set_realm_attribute(kc, realm, name, value):
+    """Set one realm attribute. Keycloak replaces the whole attribute
+    map of a realm update: merge it with the current attributes."""
+    attributes = kc.get(f"/{realm}").get("attributes") or {}
+    attributes[name] = value
+    kc.put(f"/{realm}", {"attributes": attributes})
+
 def set_user_domain_access(kc, realm, access):
-    kc.put(f"/{realm}", {"attributes": {ACCESS_ATTRIBUTE: access}})
+    set_realm_attribute(kc, realm, ACCESS_ATTRIBUTE, access)
 
 def domain_provider(domain):
     """Return the module ID of the account provider of a user domain."""
