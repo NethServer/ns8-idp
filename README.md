@@ -276,6 +276,16 @@ in `employeeNumber`. The marker
 Keycloak returns IdP secrets masked: the idp keeps the IdP settings and
 the service account password in `state/federation.json`, mode 0600.
 
+The service account stays visible in the NS8 users list of the domain.
+If it is removed, or its password is changed by mistake, the LDAP
+federation of the realm cannot bind, and logins fail. To recover it,
+run:
+
+    runagent -m idp1 register-service-account ad.example.org
+
+The command creates the account again, or resets its password, and
+applies the new credentials to the realm.
+
 ### Keycloak administration
 
 Actions, event handlers and helper scripts configure Keycloak through

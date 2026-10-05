@@ -119,15 +119,18 @@ def service_account_name():
     # sAMAccountName is at most 20 characters
     return f"{os.environ['MODULE_ID']}-svc"[:20]
 
-def ensure_service_account(domain):
+def ensure_service_account(domain, regenerate=False):
     """Create the service account of the module in the user domain, as
-    a member of Domain Admins, and return it. If it exists already, its
-    password is reset."""
+    a member of Domain Admins, and return it. If it exists already in
+    the user domain, its password is reset. A stored account is returned
+    as is, unless regenerate is set: then the account is created again,
+    or its password is reset, for example after it was removed from the
+    user domain by mistake."""
     account = load_service_account(domain)
-    if account:
+    if account and not regenerate:
         return account
     provider_id = domain_provider(domain)
-    user = service_account_name()
+    user = account["user"] if account else service_account_name()
     # The AD password complexity requires several character classes
     password = secrets.token_urlsafe(24) + "aA1!"
     data = {
