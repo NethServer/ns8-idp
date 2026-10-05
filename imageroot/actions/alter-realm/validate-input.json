@@ -7,6 +7,10 @@
         {
             "domain": "dp.example.org",
             "enabled": false
+        },
+        {
+            "domain": "ad.example.org",
+            "login_mode": "federated"
         }
     ],
     "type": "object",
@@ -22,6 +26,14 @@
         "enabled": {
             "description": "A disabled realm refuses the logins of all its clients",
             "type": "boolean"
+        },
+        "login_mode": {
+            "description": "mixed: the Keycloak password form is shown next to the federated IdP buttons. federated: only federated IdP logins are accepted, and Keycloak redirects straight to the IdP. It requires exactly one enabled federated IdP. It does not stop password logins in applications that show their own login form",
+            "type": "string",
+            "enum": [
+                "mixed",
+                "federated"
+            ]
         }
     }
 }

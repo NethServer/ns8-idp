@@ -30,6 +30,8 @@ import cluster.userdomains
 
 # Realm attribute: "read-only" (default) or "writable"
 ACCESS_ATTRIBUTE = "ns8_user_domain_access"
+# Realm attribute: "mixed" (default) or "federated"
+LOGIN_MODE_ATTRIBUTE = "ns8_login_mode"
 # Secrets of the federation, by user domain: the service account and the
 # federated IdP credentials. Keycloak returns IdP secrets masked, so a
 # copy is needed to update an IdP.
@@ -47,6 +49,9 @@ BROWSER_FLOW = "ns8 browser"
 BROWSER_FORMS_FLOW = "ns8 browser forms"
 DIRECT_GRANT_FLOW = "ns8 direct grant"
 FIRST_BROKER_LOGIN_FLOW = "ns8 first broker login"
+# Direct grant flow of a federated realm: it denies every login
+DENY_DIRECT_GRANT_FLOW = "ns8 deny direct grant"
+REDIRECTOR_CONFIG_ALIAS = "ns8 default idp"
 LINK_AUTHENTICATOR = "ns8-idp-link-by-attribute"
 
 ENTRA_LOGIN_URL = "https://login.microsoftonline.com"
@@ -443,6 +448,108 @@ def entra_idp_mappers(alias):
 
 def federated_idps(kc, realm):
     return kc.get(f"/{realm}/identity-provider/instances")
+
+def enabled_idps(kc, realm):
+    return [idp for idp in federated_idps(kc, realm) if idp["enabled"]]
+
+#
+# Login mode
+#
+
+def login_mode(kc, realm):
+    attributes = kc.get(f"/{realm}").get("attributes") or {}
+    return attributes.get(LOGIN_MODE_ATTRIBUTE, "mixed")
+
+def _ensure_deny_direct_grant_flow(kc, realm):
+    if DENY_DIRECT_GRANT_FLOW in _flows(kc, realm):
+        return
+    kc.post(f"/{realm}/authentication/flows", {
+        "alias": DENY_DIRECT_GRANT_FLOW,
+        "description": "Deny every password login of a federated realm",
+        "providerId": "basic-flow",
+        "topLevel": True,
+        "builtIn": False,
+    })
+    kc.post(f"/{realm}/authentication/flows/{_path(DENY_DIRECT_GRANT_FLOW)}/executions/execution",
+        {"provider": "deny-access-authenticator"})
+    execution = _executions(kc, realm, DENY_DIRECT_GRANT_FLOW)[0]
+    _set_requirement(kc, realm, DENY_DIRECT_GRANT_FLOW, execution["id"], "REQUIRED")
+    kc.post(f"/{realm}/authentication/executions/{execution['id']}/config", {
+        "alias": f"{DENY_DIRECT_GRANT_FLOW} message",
+        "config": {"denyErrorMessage": "This realm accepts only federated logins"},
+    })
+
+def _set_default_provider(kc, realm, alias):
+    """Configure the Identity Provider Redirector of the browser flow to
+    redirect straight to the IdP alias, or remove its configuration
+    with a None alias."""
+    redirector = next(e for e in _executions(kc, realm, BROWSER_FLOW)
+        if e.get("providerId") == "identity-provider-redirector")
+    config_id = redirector.get("authenticationConfig")
+    if alias is None:
+        if config_id:
+            kc.delete(f"/{realm}/authentication/config/{config_id}")
+    elif config_id:
+        config = kc.get(f"/{realm}/authentication/config/{config_id}")
+        config["config"] = {"defaultProvider": alias}
+        kc.put(f"/{realm}/authentication/config/{config_id}", config)
+    else:
+        kc.post(f"/{realm}/authentication/executions/{redirector['id']}/config", {
+            "alias": REDIRECTOR_CONFIG_ALIAS,
+            "config": {"defaultProvider": alias},
+        })
+
+def apply_login_mode(kc, realm, mode=None):
+    """Apply a login mode to the realm flows, or apply again the current
+    one when the enabled federated IdPs change.
+
+    - mixed: the Keycloak password form is shown next to the IdP buttons;
+    - federated: no password form and no direct grant; Keycloak redirects
+      straight to the only enabled IdP. Keycloak draws IdP buttons in its
+      password form, so a federated realm cannot offer a choice of IdPs:
+      the actions keep exactly one IdP enabled in a federated realm.
+    """
+    if mode is None:
+        mode = login_mode(kc, realm)
+    if BROWSER_FLOW not in _flows(kc, realm):
+        # A realm that never had federated IdPs uses the built-in flows,
+        # which are already mixed
+        set_realm_attribute(kc, realm, LOGIN_MODE_ATTRIBUTE, mode)
+        return
+    forms = next(e for e in _executions(kc, realm, BROWSER_FLOW)
+        if e["level"] == 0 and e["displayName"] == BROWSER_FORMS_FLOW)
+    if mode == "federated":
+        enabled = enabled_idps(kc, realm)
+        _set_requirement(kc, realm, BROWSER_FLOW, forms["id"], "DISABLED")
+        _set_default_provider(kc, realm, enabled[0]["alias"])
+        _ensure_deny_direct_grant_flow(kc, realm)
+        direct_grant_flow = DENY_DIRECT_GRANT_FLOW
+    else:
+        _set_requirement(kc, realm, BROWSER_FLOW, forms["id"], "ALTERNATIVE")
+        _set_default_provider(kc, realm, None)
+        direct_grant_flow = DIRECT_GRANT_FLOW
+    kc.put(f"/{realm}", {"directGrantFlow": direct_grant_flow})
+    set_realm_attribute(kc, realm, LOGIN_MODE_ATTRIBUTE, mode)
+
+def native_accounts(kc, realm):
+    """Count the enabled accounts of the realm without the federated
+    account marker, which lose SSO logins in a federated realm. The LDAP
+    users are synchronized first, to count also those that never logged
+    in."""
+    storage = kc.get(f"/{realm}/components", params={"type": "org.keycloak.storage.UserStorageProvider"})[0]
+    kc.post(f"/{realm}/user-storage/{storage['id']}/sync?action=triggerFullSync")
+    service_account = (load_service_account(realm) or {}).get("user", "").lower()
+    count = 0
+    first = 0
+    while True:
+        users = kc.get(f"/{realm}/users", params={"first": str(first), "max": "100", "briefRepresentation": "false"})
+        for user in users:
+            attributes = user.get("attributes") or {}
+            if user["enabled"] and not attributes.get("ns8_idp") and user["username"] != service_account:
+                count += 1
+        if len(users) < 100:
+            return count
+        first += 100
 
 def redirect_uri(realm, alias):
     return f"https://{os.environ['IDP_HOSTNAME']}/realms/{realm}/broker/{alias}/endpoint"

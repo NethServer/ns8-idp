@@ -117,6 +117,30 @@ given attributes only, for example `{"enabled": false}` or a new
 accounts stay in the user domain, and log in with a password only if an
 administrator sets one.
 
+A realm with a federated IdP has a login mode, set with `alter-realm`:
+
+- `mixed` (default): Keycloak shows its password form next to the IdP
+  login button, so native accounts keep logging in with their password;
+- `federated`: Keycloak accepts only the federated IdP. Its login page
+  redirects straight to the IdP, and password logins through Keycloak
+  are refused. It requires exactly one enabled IdP: while a realm is
+  federated, its IdP cannot be disabled or removed, and no other IdP can
+  be added or enabled. Switch it back to `mixed` first.
+
+      api-cli run module/idp1/alter-realm --data '{"domain": "ad.example.org", "login_mode": "federated"}'
+
+  The output reports how many enabled native accounts, without the
+  federated account marker, lose their SSO logins:
+
+      {"native_accounts": 8}
+
+The realm login mode is independent of the applications. It does not
+stop password logins in an application that shows its own login form:
+in a federated realm, applications should use exclusive SSO (their
+`OIDC_LOGIN_MODE`), so their login pages go straight to Keycloak.
+Non-browser protocols, like IMAP and WebDAV, keep using LDAP passwords
+by design.
+
 OpenLDAP user domains are not supported yet: their accounts need numeric
 IDs that Keycloak cannot allocate.
 
@@ -272,6 +296,14 @@ in `employeeNumber`. The marker
   grant flows: otherwise it could log in without the IdP, bypassing
   its multi-factor authentication and conditional access. The denial of
   an IdP is removed with the IdP.
+
+The `federated` login mode disables the password forms subflow of the
+browser flow, configures the Identity Provider Redirector with the IdP
+as default provider, and binds a direct grant flow that denies every
+login. Keycloak draws the IdP buttons inside its password form, so a
+federated realm cannot offer a choice among several IdPs: the actions
+keep exactly one IdP enabled while a realm is federated. The mode is
+recorded in the `ns8_login_mode` realm attribute.
 
 Keycloak returns IdP secrets masked: the idp keeps the IdP settings and
 the service account password in `state/federation.json`, mode 0600.

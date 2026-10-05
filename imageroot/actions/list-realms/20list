@@ -36,6 +36,7 @@ for name in kcadmin.managed_realms(kc):
         "issuer": idprealm.issuer_url(name),
         "user_domain_found": name in user_domains,
         "user_domain_access": idpfed.user_domain_access(kc, name),
+        "login_mode": idpfed.login_mode(kc, name),
         "clients": sorted(clients, key=lambda c: c["client_id"]),
         "federated_idps": sorted(federated_idps, key=lambda i: i["alias"]),
     })

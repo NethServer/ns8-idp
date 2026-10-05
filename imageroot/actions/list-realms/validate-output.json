@@ -26,7 +26,8 @@
                             "enabled": true,
                             "redirect_uri": "https://sso.example.org/realms/dp.example.org/broker/entra/endpoint"
                         }
-                    ]
+                    ],
+                    "login_mode": "mixed"
                 }
             ]
         }
@@ -47,7 +48,8 @@
                     "user_domain_found",
                     "clients",
                     "user_domain_access",
-                    "federated_idps"
+                    "federated_idps",
+                    "login_mode"
                 ],
                 "properties": {
                     "name": {
@@ -121,6 +123,14 @@
                                 }
                             }
                         }
+                    },
+                    "login_mode": {
+                        "description": "federated if the realm accepts only federated IdP logins",
+                        "type": "string",
+                        "enum": [
+                            "mixed",
+                            "federated"
+                        ]
                     }
                 }
             }

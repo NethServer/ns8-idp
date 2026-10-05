@@ -22,8 +22,13 @@ with idprealm.realms_lock():
     kc = kcadmin.agent_client()
     if domain not in kcadmin.managed_realms(kc):
         idprealm.fail_validation("domain", domain, "realm_not_found")
-    if not any(idp["alias"] == alias for idp in idpfed.federated_idps(kc, domain)):
+    idp = next((i for i in idpfed.federated_idps(kc, domain) if i["alias"] == alias), None)
+    if idp is None:
         idprealm.fail_validation("alias", alias, "idp_not_found")
+    # A federated realm needs an enabled IdP: switch it to mixed first
+    federated = idpfed.login_mode(kc, domain) == "federated"
+    if federated and idp["enabled"] and len(idpfed.enabled_idps(kc, domain)) == 1:
+        idprealm.fail_validation("alias", alias, "last_enabled_idp_of_federated_realm")
 
     print(f"Removing federated IdP {alias} from realm {domain}", file=sys.stderr)
     kc.delete(f"/{domain}/identity-provider/instances/{alias}")

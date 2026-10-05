@@ -1,0 +1,20 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "alter-realm output",
+    "$id": "http://schema.nethserver.org/idp/alter-realm-output.json",
+    "description": "Result of the realm changes",
+    "examples": [
+        {},
+        {
+            "native_accounts": 8
+        }
+    ],
+    "type": "object",
+    "properties": {
+        "native_accounts": {
+            "description": "Only when login_mode is set to federated: enabled accounts without the federated account marker, which lose SSO logins",
+            "type": "integer",
+            "minimum": 0
+        }
+    }
+}

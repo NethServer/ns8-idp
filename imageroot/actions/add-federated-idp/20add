@@ -42,6 +42,9 @@ with idprealm.realms_lock():
         idprealm.ensure_realm(kc, domain)
     if any(idp["alias"] == alias for idp in idpfed.federated_idps(kc, domain)):
         idprealm.fail_validation("alias", alias, "idp_already_exists")
+    # A federated realm has exactly one enabled IdP
+    if idpfed.login_mode(kc, domain) == "federated":
+        idprealm.fail_validation("domain", domain, "realm_is_federated")
 
     # The first federated IdP grants the realm write access to its user
     # domain, to create the accounts of federated users

@@ -26,6 +26,13 @@ settings = idpfed.load_idp_settings(domain, alias)
 if idp is None or settings is None:
     idprealm.fail_validation("alias", alias, "idp_not_found")
 
+# A federated realm has exactly one enabled IdP: switch it to mixed
+# before changing which IdP is enabled
+enabled = request.get("enabled", idp["enabled"])
+if enabled != idp["enabled"] and idpfed.login_mode(kc, domain) == "federated":
+    error = "last_enabled_idp_of_federated_realm" if idp["enabled"] else "realm_is_federated"
+    idprealm.fail_validation("enabled", enabled, error)
+
 entra = dict(settings["entra"], **request.get("entra", {}))
 if "client_secret" in request.get("entra", {}) and request.get("check_credentials", True):
     error = idpfed.check_entra_credentials(entra["tenant_id"], entra["client_id"], entra["client_secret"])
@@ -36,7 +43,8 @@ if "client_secret" in request.get("entra", {}) and request.get("check_credential
 # Rebuild the representation from the stored settings: the secret
 # returned by Keycloak is masked
 rep = idpfed.entra_idp_rep(alias, request.get("display_name", idp["displayName"]), entra)
-rep["enabled"] = request.get("enabled", idp["enabled"])
+rep["enabled"] = enabled
 rep["internalId"] = idp["internalId"]
 kc.put(f"/{domain}/identity-provider/instances/{alias}", rep)
 idpfed.save_idp_settings(domain, alias, dict(settings, entra=entra))
+

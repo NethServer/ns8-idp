@@ -8,6 +8,7 @@
 import json
 import sys
 
+import idpfed
 import idprealm
 import kcadmin
 
@@ -19,6 +20,20 @@ kc = kcadmin.agent_client()
 if domain not in kcadmin.managed_realms(kc):
     idprealm.fail_validation("domain", domain, "realm_not_found")
 
+login_mode = request.get("login_mode")
+# A federated realm redirects to its only enabled IdP: without the
+# password form, Keycloak cannot show a choice of IdPs
+if login_mode == "federated" and len(idpfed.enabled_idps(kc, domain)) != 1:
+    idprealm.fail_validation("login_mode", login_mode, "federated_requires_one_enabled_idp")
+
 if "enabled" in request:
     # A disabled realm refuses the logins of all its clients
     kc.put(f"/{domain}", {"enabled": request["enabled"]})
+
+output = {}
+if login_mode:
+    print(f"Setting login mode {login_mode} in realm {domain}", file=sys.stderr)
+    idpfed.apply_login_mode(kc, domain, login_mode)
+    if login_mode == "federated":
+        output["native_accounts"] = idpfed.native_accounts(kc, domain)
+json.dump(output, fp=sys.stdout)
