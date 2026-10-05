@@ -42,9 +42,14 @@ with idprealm.realms_lock():
     idprealm.bind_domain(domain)
     kc = kcadmin.agent_client()
     idprealm.ensure_realm(kc, domain)
+    redirect_uris = request.get("redirect_uris", [])
+    if "post_logout_redirect_uris" in request:
+        post_logout_redirect_uris = request["post_logout_redirect_uris"]
+    else:
+        post_logout_redirect_uris = idprealm.default_post_logout_redirect_uris(redirect_uris)
     client_secret = idprealm.ensure_client(kc, domain, module_id,
-        redirect_uris=request.get("redirect_uris", []),
-        post_logout_redirect_uris=request.get("post_logout_redirect_uris", []),
+        redirect_uris=redirect_uris,
+        post_logout_redirect_uris=post_logout_redirect_uris,
         web_origins=request.get("web_origins", []),
         audience=request.get("audience", []),
         rotate_secret=request.get("rotate_secret", False),

@@ -17,6 +17,7 @@ import os
 import secrets
 import subprocess
 import sys
+import urllib.parse
 
 import agent
 import agent.ldapproxy
@@ -277,6 +278,18 @@ def ensure_ldap_uuid_scope(kc, domain):
     })
     scope_id = location.rstrip("/").rsplit("/", 1)[-1]
     kc.put(f"/{domain}/default-default-client-scopes/{scope_id}")
+
+def default_post_logout_redirect_uris(redirect_uris):
+    """Return a wildcard URI for each origin of the redirect URIs, like
+    https://cloud.example.org/*: a fallback for applications that do not
+    pass their exact logout URIs."""
+    origins = []
+    for uri in redirect_uris:
+        parts = urllib.parse.urlsplit(uri)
+        origin = f"{parts.scheme}://{parts.netloc}/*"
+        if parts.scheme and parts.netloc and origin not in origins:
+            origins.append(origin)
+    return origins
 
 def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_uris=(),
         web_origins=(), audience=(), rotate_secret=False):

@@ -44,11 +44,18 @@ The client ID is the module ID. For example, the module agent of
 response = agent.tasks.run(agent_id="module/idp1", action="register-client", data={
     "domain": "dp.example.org",
     "redirect_uris": ["https://cloud.example.org/apps/user_oidc/code"],
+    "post_logout_redirect_uris": ["https://cloud.example.org/"],
 })
 agent.assert_exp(response["exit_code"] == 0)
 # {"client_id": "nextcloud1", "client_secret": "...", "realm": "dp.example.org",
 #  "issuer": "https://sso.example.org/realms/dp.example.org"}
 ```
+
+Pass the exact URIs where the application logout returns the user in
+`post_logout_redirect_uris`: Keycloak refuses any other one with an
+"Invalid redirect uri" page. Without the attribute, `register-client`
+allows a wildcard URI for each origin of the redirect URIs, like
+`https://cloud.example.org/*`, as a fallback.
 
 The same call updates an existing client and returns its current secret;
 add `"rotate_secret": true` to generate a new one. A client without
