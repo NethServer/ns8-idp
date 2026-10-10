@@ -25,6 +25,15 @@
                 "mail1"
             ],
             "rotate_secret": true
+        },
+        {
+            "domain": "dp.example.org",
+            "redirect_uris": [
+                "https://app.example.org/callback"
+            ],
+            "access_token_claims": {
+                "app_principal_kind": "human"
+            }
         }
     ],
     "type": "object",
@@ -81,6 +90,43 @@
             "description": "Module that owns the client. Allowed only for tasks without a calling user, for example created by the cluster agent: otherwise the owner is the calling module",
             "type": "string",
             "pattern": "^[a-zA-Z0-9_.-]+$"
+        },
+        "access_token_claims": {
+            "description": "Up to eight fixed string claims on access tokens only. Custom top-level underscore names; reserved protocol, identity and authorization claims are rejected. Omit to preserve; {} removes only feature-owned claim mappers. Password, implicit and service-account grants remain disabled.",
+            "type": "object",
+            "maxProperties": 8,
+            "propertyNames": {
+                "allOf": [
+                    {
+                        "pattern": "^[a-z][a-z0-9]{0,15}_[a-z0-9_]{1,47}$"
+                    },
+                    {
+                        "not": {
+                            "enum": [
+                                "token_type",
+                                "auth_time",
+                                "session_state",
+                                "client_id",
+                                "realm_access",
+                                "resource_access",
+                                "preferred_username",
+                                "email_verified",
+                                "given_name",
+                                "family_name",
+                                "ldap_uuid",
+                                "at_hash",
+                                "c_hash",
+                                "s_hash",
+                                "may_act"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "additionalProperties": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,128}$"
+            }
         }
     }
 }
