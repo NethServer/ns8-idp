@@ -99,4 +99,8 @@ Take screenshots
     Wait For Elements State    iframe >>> h2 >> text="Settings"    visible    timeout=10s
     Sleep    5s
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/2._Settings.png
+    Go To    https://${NODE_ADDR}/cluster-admin/#/apps/${module_id}?page=about
+    Wait For Elements State    iframe >>> h2 >> text="About"    visible    timeout=10s
+    Sleep    5s
+    Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/3._About.png
     Close Browser
