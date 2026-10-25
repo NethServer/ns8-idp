@@ -18,6 +18,8 @@ import tempfile
 import types
 import unittest
 
+sys.dont_write_bytecode = True
+
 ROOT=Path(__file__).resolve().parents[1]
 UPSTREAM=Path(os.environ.get('IDP_UPSTREAM_ROOT', ROOT))
 
