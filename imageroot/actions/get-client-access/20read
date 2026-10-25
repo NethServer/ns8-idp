@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import os
+import sys
+
+import idpaccess
+import idprealm
+import kcadmin
+
+request = json.load(sys.stdin)
+domain = request["domain"]
+
+# A module reads the policy of its own client only. Administrators, with
+# tasks without a calling user, pass client_id.
+task_user = os.getenv("AGENT_TASK_USER", "")
+if task_user:
+    if "client_id" in request:
+        idprealm.fail_validation("client_id", request["client_id"], "client_id_not_allowed")
+    if not task_user.startswith("module/"):
+        idprealm.fail_validation("client_id", task_user, "caller_not_a_module")
+    client_id = task_user.removeprefix("module/")
+elif "client_id" in request:
+    client_id = request["client_id"]
+else:
+    idprealm.fail_validation("client_id", "", "client_id_required")
+
+idprealm.require_keycloak()
+kc = kcadmin.agent_client()
+if domain not in kcadmin.managed_realms(kc):
+    idprealm.fail_validation("domain", domain, "realm_not_found")
+client = next((c for c in idprealm.module_clients(kc, domain) if c["clientId"] == client_id), None)
+if client is None:
+    idprealm.fail_validation("client_id", client_id, "client_not_found")
+
+state = idpaccess.access_state(kc, domain, client)
+state["enabled"] = client.get("enabled", True)
+json.dump(state, fp=sys.stdout)
