@@ -91,6 +91,24 @@ provider module:
 Any module publishing the `oidc` service is expected to implement the
 `register-client` action and the `clientadm` role as described here.
 
+### Additional access-token claims
+
+`register-client` accepts `access_token_claims`, an object of at most eight fixed string claims. Names must be lowercase custom top-level names with an underscore, for example `app_principal_kind`; values contain 1–128 ASCII letters, digits, underscores or hyphens. Reserved protocol, identity and authorization claims (including issuer, subject, audience, expiry and token type) are rejected. Nested claim names and arbitrary mapper configuration are not accepted.
+
+```json
+{
+  "domain": "dp.example.org",
+  "redirect_uris": ["https://app.example.org/callback"],
+  "access_token_claims": {"app_principal_kind": "human"}
+}
+```
+
+The built-in hardcoded claim mapper adds these string claims to access tokens and introspection responses, never ID tokens or user-info responses. Omitting `access_token_claims` preserves the saved feature claims. Passing `{}` removes them. Only mappers recorded in the feature's ownership attribute are reconciled; name collisions with other mappers fail before updating the client. Unrelated mappers are preserved. The historical audience mappers use their original exact generated representation for ownership.
+
+All registered clients continue to disable password grants, implicit flow and service accounts, including a client carrying a static user classification. The caller and domain-binding ownership checks are unchanged. Ordinary updates preserve the client secret and administrator-disabled state; only `rotate_secret: true` rotates a secret. The claim says which authentication contract the client uses; it does not prove a human manually performed each operation or supply application permissions.
+
+This extension does not add public clients, a credential broker or independent machine identities. A user-authorized external client still needs its own supported registration, exact callback, audience and secure token handling. Those capabilities are independent dependencies.
+
 ## Federated identity providers
 
 The realm of an internal Active Directory user domain can accept the
@@ -402,3 +420,13 @@ To setup the translation process:
 
 - add [GitHub Weblate app](https://docs.weblate.org/en/latest/admin/continuous.html#github-setup) to your repository
 - add your repository to [hosted.weblate.org](https://hosted.weblate.org) or ask a NethServer developer to add it to ns8 Weblate project
+
+### Claim-extension checks
+
+Run `python3 -m unittest discover -s tests -p test_claims.py -v` with Python and
+`jsonschema` installed. The claim-check workflow also starts an isolated pinned
+Keycloak and exercises actual signed access tokens from Authorization Code with
+PKCE, refresh, forbidden grants, mapper ownership, ordinary secret preservation
+and administrator-disabled state. It never changes the human client's forbidden
+flow settings to obtain a test token. These checks supplement the existing real
+NS8 realm/registration suite; they do not establish C1 bootstrap or recovery.
