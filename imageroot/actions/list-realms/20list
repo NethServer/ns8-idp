@@ -9,6 +9,7 @@ import json
 import sys
 
 import agent.ldapproxy
+import idpaccess
 import idpfed
 import idprealm
 import kcadmin
@@ -22,6 +23,7 @@ for name in kcadmin.managed_realms(kc):
     clients = [{
         "client_id": client["clientId"],
         "enabled": client["enabled"],
+        "access_group": idpaccess.access_state(kc, name, client)["group"] if idpaccess.restricted(client) else None,
     } for client in idprealm.module_clients(kc, name)]
     federated_idps = [{
         "alias": idp["alias"],

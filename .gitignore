@@ -107,3 +107,9 @@ dist
 .tern-port
 
 tests/outputs/
+
+__pycache__/
+*.pyc
+**/target/
+tests/outputs/
+.venv/
