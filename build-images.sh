@@ -14,6 +14,9 @@ images=()
 repobase="${REPOBASE:-ghcr.io/nethserver}"
 # Configure the image name
 reponame="idp"
+# Node.js 25+ no longer ships Corepack, install it from npm
+# renovate: datasource=npm packageName=corepack
+corepack_version=0.36.0
 
 # Create a new empty container image
 container=$(buildah from scratch)
@@ -29,7 +32,7 @@ buildah run \
     --workingdir=/usr/src/ui \
     --env="NODE_OPTIONS=--openssl-legacy-provider" \
     nodebuilder-idp \
-    sh -c "corepack enable && yarn install && yarn build"
+    sh -c "npm install -g corepack@${corepack_version} && corepack enable && yarn install && yarn build"
 
 # Build the Keycloak image, with the NS8 providers built in
 echo "Building the Keycloak image..."
