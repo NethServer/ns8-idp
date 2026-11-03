@@ -25,6 +25,7 @@ container=$(buildah from scratch)
 if ! buildah containers --format "{{.ContainerName}}" | grep -q nodebuilder-idp; then
     echo "Pulling NodeJS runtime..."
     buildah from --name nodebuilder-idp -v "${PWD}:/usr/src:Z" docker.io/library/node:24.22.1-slim
+    buildah run nodebuilder-idp sh -c "npm install -g corepack@${corepack_version} && corepack enable"
 fi
 
 echo "Build static UI files with node..."
@@ -32,7 +33,7 @@ buildah run \
     --workingdir=/usr/src/ui \
     --env="NODE_OPTIONS=--openssl-legacy-provider" \
     nodebuilder-idp \
-    sh -c "npm install -g corepack@${corepack_version} && corepack enable && yarn install && yarn build"
+    sh -c "yarn install && yarn build"
 
 # Build the Keycloak image, with the NS8 providers built in
 echo "Building the Keycloak image..."

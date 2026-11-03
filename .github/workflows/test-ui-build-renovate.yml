@@ -14,7 +14,7 @@ jobs:
 
     env:
       NODE_OPTIONS: --openssl-legacy-provider
-      # renovate: datasource=npm depName=corepack
+      # renovate: datasource=npm packageName=corepack
       COREPACK_VERSION: 0.36.0
 
     steps:
