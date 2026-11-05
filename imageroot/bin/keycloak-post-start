@@ -44,23 +44,25 @@ def smtp_server_rep(settings):
         rep["password"] = settings["password"]
     return rep
 
-rdb = agent.redis_connect(use_replica=True)
-smtp_server = smtp_server_rep(agent.get_smarthost_settings(rdb))
+# Serialize realm changes with registration and the other realm writers.
+with idprealm.realms_lock():
+    rdb = agent.redis_connect(use_replica=True)
+    smtp_server = smtp_server_rep(agent.get_smarthost_settings(rdb))
 
-user_domains = agent.ldapproxy.Ldapproxy().get_domains_list()
+    user_domains = agent.ldapproxy.Ldapproxy().get_domains_list()
 
-kc = kcadmin.agent_client()
-for realm in kcadmin.managed_realms(kc):
-    if realm in user_domains:
-        idprealm.ensure_federation(kc, realm)
-    else:
-        print(agent.SD_WARNING + f"User domain {realm} not found: the LDAP federation of its realm is not updated", file=sys.stderr)
+    kc = kcadmin.agent_client()
+    for realm in kcadmin.managed_realms(kc):
+        if realm in user_domains:
+            idprealm.ensure_federation(kc, realm)
+        else:
+            print(agent.SD_WARNING + f"User domain {realm} not found: the LDAP federation of its realm is not updated", file=sys.stderr)
 
-    for client in idprealm.module_clients(kc, realm):
-        module_id = client["attributes"][idprealm.MODULE_ATTRIBUTE]
-        if realm not in (rdb.hget("cluster/module_domains", module_id) or "").split():
-            print(f"Deleting client {client['clientId']} of realm {realm}: module {module_id} is not bound to the user domain", file=sys.stderr)
-            kc.delete(f"/{realm}/clients/{client['id']}")
+        for client in idprealm.module_clients(kc, realm):
+            module_id = client["attributes"][idprealm.MODULE_ATTRIBUTE]
+            if realm not in (rdb.hget("cluster/module_domains", module_id) or "").split():
+                print(f"Deleting client {client['clientId']} of realm {realm}: module {module_id} is not bound to the user domain", file=sys.stderr)
+                kc.delete(f"/{realm}/clients/{client['id']}")
 
-    print(f"Applying SMTP settings to realm {realm}", file=sys.stderr)
-    kc.put(f"/{realm}", {"smtpServer": smtp_server})
+        print(f"Applying SMTP settings to realm {realm}", file=sys.stderr)
+        kc.put(f"/{realm}", {"smtpServer": smtp_server})
