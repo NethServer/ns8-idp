@@ -36,6 +36,9 @@ module_domains = (rdb.hget("cluster/module_domains", module_id) or "").split()
 if domain not in module_domains:
     idprealm.fail_validation("domain", domain, "domain_not_bound_to_module")
 
+if "access_token_claims" in request:
+    idprealm.validate_access_token_claims(request["access_token_claims"])
+
 idprealm.require_keycloak()
 
 with idprealm.realms_lock():
@@ -53,6 +56,7 @@ with idprealm.realms_lock():
         web_origins=request.get("web_origins", []),
         audience=request.get("audience", []),
         rotate_secret=request.get("rotate_secret", False),
+        access_token_claims=request.get("access_token_claims"),
     )
 
 json.dump({
