@@ -53,6 +53,7 @@ with idprealm.realms_lock():
         web_origins=request.get("web_origins", []),
         audience=request.get("audience", []),
         rotate_secret=request.get("rotate_secret", False),
+        access_token_lifespan=request.get("access_token_lifespan", idprealm.KEEP),
     )
 
 json.dump({

@@ -1,0 +1,25 @@
+name: Client access tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  client-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests jsonschema
+      - run: python3 -m unittest discover -s tests -p test_client_access.py -v
+      - run: python3 -m unittest discover -s tests -p test_realm_lock.py -v
+      - run: podman build -f tests/client-access/Samba.Containerfile -t localhost/ns8-vaultwarden-test-samba tests/client-access
+      - run: podman build -f tests/client-access/Containerfile -t localhost/ns8-idp-client-access-test .
+      - run: python3 tests/client-access/run.py
+      - run: python3 tests/client-access/check_failures.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: client-access-logs
+          path: tests/outputs/integration

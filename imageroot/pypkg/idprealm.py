@@ -28,6 +28,9 @@ GROUP_MAPPER_NAME = "groups"
 LDAP_UUID_SCOPE = "ldap_uuid"
 # Client attribute recording the owner module of a client
 MODULE_ATTRIBUTE = "ns8.module_id"
+ACCESS_TOKEN_LIFESPAN = "access.token.lifespan"
+# Default of optional client settings that are kept when not given
+KEEP = object()
 # ldapproxy listens on the node VPN address, reachable from the pod
 LDAPPROXY_HOST = "cluster-localnode"
 
@@ -292,10 +295,11 @@ def default_post_logout_redirect_uris(redirect_uris):
     return origins
 
 def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_uris=(),
-        web_origins=(), audience=(), rotate_secret=False):
+        web_origins=(), audience=(), rotate_secret=False, access_token_lifespan=KEEP):
     """Create or update the OIDC client of a module, and return its
     secret. The secret is generated on creation, and when rotate_secret
-    is set."""
+    is set. The access token lifespan, in seconds, is kept unless given;
+    None restores the realm default."""
     rep = {
         "clientId": module_id,
         "name": module_id,
@@ -316,6 +320,9 @@ def ensure_client(kc, realm, module_id, redirect_uris=(), post_logout_redirect_u
         },
         "protocolMappers": [audience_mapper(client_id) for client_id in audience],
     }
+    if access_token_lifespan is not KEEP:
+        # An empty value removes the attribute
+        rep["attributes"][ACCESS_TOKEN_LIFESPAN] = str(access_token_lifespan or "")
     current = kc.find_client(realm, module_id)
     if current is None:
         print(f"Creating client {module_id} in realm {realm}", file=sys.stderr)

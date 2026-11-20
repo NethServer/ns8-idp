@@ -8,6 +8,16 @@
             "domain": "dp.example.org",
             "client_id": "nextcloud1",
             "enabled": false
+        },
+        {
+            "domain": "ad.example.org",
+            "client_id": "vaultwarden1",
+            "access_group": "services_vaultwarden"
+        },
+        {
+            "domain": "ad.example.org",
+            "client_id": "vaultwarden1",
+            "access_group": null
         }
     ],
     "type": "object",
@@ -29,6 +39,14 @@
         "enabled": {
             "description": "A disabled client cannot log users in. Registering the client again does not enable it",
             "type": "boolean"
+        },
+        "access_group": {
+            "description": "Only the current members of this LDAP group of the user domain can sign in to the client, also with an existing SSO session or through a federated IdP. null removes the restriction. Registering the client again does not change it",
+            "type": [
+                "string",
+                "null"
+            ],
+            "pattern": "^[^/\r\n]+$"
         }
     }
 }

@@ -91,6 +91,72 @@ provider module:
 Any module publishing the `oidc` service is expected to implement the
 `register-client` action and the `clientadm` role as described here.
 
+## Optional client group access (draft)
+
+An administrator can restrict an NS8 module's OIDC client to the **direct**
+members of one LDAP group in its user domain:
+
+```sh
+api-cli run module/idp1/alter-realm-client --data '{"domain":"ad.example.org","client_id":"vaultwarden1","access_group":"services_vaultwarden"}'
+```
+
+Omitting `access_group` preserves the policy; `null` removes it. Client
+re-registration preserves both the policy and an administrator-disabled
+state. Only administrators can set the policy. No UI field is supplied by
+this draft; use the action API. `list-realms` also reports `access_group`.
+
+The required action checks membership at password, SSO-cookie and broker
+login, and the protocol mapper checks code redemption, refresh and userinfo.
+The check evicts only the authenticating user's shared cache entry, reloads
+LDAP membership, and denies access on directory failure. The federation's
+cache policy and the existing realm login flows are preserved. A writable
+LDAP federation is supported when its group mapper is read-only. Broker
+identities must be linked to that LDAP federation; external-only identities
+are denied. Nested membership is not supported.
+
+Restricted clients use OIDC authorization code flow (including PKCE).
+Applying the policy disables implicit flow, direct grants and service
+accounts. Other grants and SAML are outside the validated scope. Tokens
+already issued and application sessions retain their own validation and
+expiry rules; this does not revoke an offline application session or vault.
+
+A module with the `clientadm` role can read only its own policy:
+
+```python
+response = agent.tasks.run(agent_id="module/idp1", action="get-client-access",
+    data={"domain": "ad.example.org"})
+```
+
+Administrators supply `client_id`. The response contains `enforced`,
+`enabled`, `group`, `group_path` and `issues`. Check `enabled` separately:
+`enforced` verifies configuration structure, not live LDAP availability or
+membership. An LDAP-deleted group may still be imported in Keycloak and
+report `enforced: true`, while real login is denied.
+
+Unknown-group preflight failures leave the client unchanged. A later failure
+after disabling the client leaves it disabled. Startup and cluster-event
+reconciliation repair missing enforcement components but never re-enable
+that client; an administrator must review the policy and explicitly recover
+it with `alter-realm-client`. Reconciliation is event-driven, not continuous
+protection against changes by a Keycloak administrator. Removing a module
+removes its client; registration of a new instance requires a new policy.
+The required action remains registered and permits clients without a policy.
+No browser-flow copies or prototype migration are installed.
+
+### Optional access-token lifetime
+
+Independently of the group policy, `register-client` accepts
+`access_token_lifespan`, an integer from 60 to 86400 seconds. Omission keeps
+an existing override; `null` restores the realm default. For example, an
+application with a 600-second session requirement can include:
+
+```python
+{"domain": "ad.example.org", "access_token_lifespan": 600}
+```
+
+See [client-access testing and remaining work](docs/CLIENT-ACCESS.md) for
+reproducible tests and the limitations of this draft.
+
 ## Federated identity providers
 
 The realm of an internal Active Directory user domain can accept the

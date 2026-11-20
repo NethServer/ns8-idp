@@ -1,0 +1,40 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "get-client-access output",
+    "type": "object",
+    "required": [
+        "enforced",
+        "enabled",
+        "group",
+        "group_path",
+        "issues"
+    ],
+    "properties": {
+        "enforced": {
+            "type": "boolean",
+            "description": "Structural check only; not a live LDAP or membership check"
+        },
+        "enabled": {
+            "type": "boolean"
+        },
+        "group": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "group_path": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false
+}

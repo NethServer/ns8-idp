@@ -82,6 +82,13 @@
                                 },
                                 "enabled": {
                                     "type": "boolean"
+                                },
+                                "access_group": {
+                                    "description": "LDAP group whose members can sign in to the client, or null if the client is not restricted. The group is null also if the restriction refers to a removed group: then nobody can sign in",
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
                                 }
                             }
                         }

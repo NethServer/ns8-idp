@@ -1,0 +1,6 @@
+FROM docker.io/library/maven:3.9.16-eclipse-temurin-21 AS providers
+WORKDIR /usr/src
+COPY keycloak-providers/ns8-authenticators /usr/src/ns8-authenticators
+RUN mvn -B -q -f ns8-authenticators/pom.xml package
+FROM quay.io/keycloak/keycloak:26.7.4-0
+COPY --from=providers /usr/src/ns8-authenticators/target/ns8-authenticators.jar /opt/keycloak/providers/
