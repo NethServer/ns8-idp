@@ -9,7 +9,7 @@
 #
 
 # Build the provider jars
-FROM docker.io/library/maven:3.9.16-eclipse-temurin-21 AS providers
+FROM docker.io/library/maven:3.10.0-eclipse-temurin-21 AS providers
 WORKDIR /usr/src
 COPY ns8-authenticators ns8-authenticators
 COPY ns8-mappers ns8-mappers
